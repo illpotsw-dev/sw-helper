@@ -1,0 +1,79 @@
+# Clan McGreggor — Land Units
+#
+# Recruitable land unit types for Clan McGreggor's Order of Battle.
+# Follows the schema defined in mvp/nations/template/land-units.yml.
+# Currency: IP (Clan McGreggor's in-game currency, per this nation's budget).
+#
+# Note: weapons is 0 for all units below — per the template schema, only
+# artillery/support_weapons types carry a weapons count; infantry,
+# mountain_infantry, and elite_infantry types do not.
+
+land_units:
+  - name: Clan Levies
+    type: infantry
+    description: >-
+      Mass infantry formations raised through traditional clan obligation
+      rather than formal conscription. Warriors are drawn from farming
+      communities, herding families, fishermen, and craftsmen. While formal
+      training is limited, physical resilience and communal discipline are
+      high. Trained in basic formation movement, volley fire, and holding
+      ground under pressure — best suited to defensive roles, familiar
+      terrain, or supporting elite units. Morale is reinforced by kinship
+      ties and the presence of respected elders and champions; desertion is
+      rare, as abandoning the field brings shame upon entire families. Clan
+      Levies form the numerical backbone of Clan McGreggor armies.
+    recruit_cost: 20
+    upkeep_per_turn: 0.5
+    build_time_turns: 1
+    men: 1000
+    weapons: 0
+
+  - name: Highlanders
+    type: mountain_infantry
+    description: >-
+      Light infantry specialists drawn from upland clans accustomed to
+      steep terrain, harsh weather, and long movement without supply.
+      Operate in loose formations, trained for skirmishing, ambush, and
+      terrain dominance rather than formal line combat. Excel at delaying
+      actions, securing high ground, and harassing enemy movements, relying
+      on concealment, elevation, and movement discipline to bleed attackers
+      and force engagements on unfavorable terms. Cohesion is maintained
+      through shared hardship and strong clan identity, allowing these
+      units to operate independently for extended periods.
+    recruit_cost: 30
+    upkeep_per_turn: 1
+    build_time_turns: 1
+    men: 500
+    weapons: 0
+
+  - name: Mounted Borders
+    type: light_cavalry
+    description: >-
+      Light cavalry drawn from clans living along contested frontiers.
+      These riders are experienced in raiding, skirmishing, and pursuit
+      rather than shock combat. Operate in loose formations, striking
+      flanks and supply lines before disengaging into broken terrain.
+      Mounted Borders are trained to fight both mounted and dismounted,
+      making them flexible tools in inter-clan warfare.
+    recruit_cost: 35
+    upkeep_per_turn: 2
+    build_time_turns: 1
+    men: 1000
+    weapons: 0
+
+  - name: Clan's Guard
+    type: elite_infantry
+    description: >-
+      The inner martial core of Clan McGreggor. Warriors are selected from
+      the strongest and most battle-proven fighters and sworn directly to
+      the war chief. Training centers on the Highland Charge — a
+      disciplined advance followed by ferocious close combat intended to
+      shatter enemy cohesion. Members are experts with family claymores and
+      hand axes and are conditioned to fight through casualties. The Clan's
+      Guard is committed only at decisive moments to break enemy lines or
+      hold critical ground at any cost.
+    recruit_cost: 35
+    upkeep_per_turn: 1
+    build_time_turns: 1
+    men: 500
+    weapons: 0

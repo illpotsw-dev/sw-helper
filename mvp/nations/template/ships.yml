@@ -1,0 +1,83 @@
+# Ships Template
+#
+# Recruitable ship classes for a nation's Order of Battle
+# (see mvp/product/mvp-navy-oob.md). Replace the example entries below
+# with your nation's actual ship classes; costs/upkeep use whatever
+# in-game currency your nation's budget uses (see mvp-budget.md).
+#
+# type: destroyer | light_cruiser | heavy_cruiser | battlecruiser |
+#       battleship | submarine | escort_carrier | fleet_carrier |
+#       transport | support
+
+ships:
+  # --- EXAMPLE ENTRIES — replace with your nation's actual ship classes ---
+
+  - name: Coastal Escort Destroyer
+    type: destroyer
+    description: Fast, lightly armored screening vessel used to hunt submarines and escort larger ships
+    build_cost: 1500
+    upkeep_per_turn: 150
+    build_time_turns: 3
+
+  - name: Swiftwater-Class Light Cruiser
+    type: light_cruiser
+    description: Fast, lightly armored cruiser suited for scouting, raiding, and screening the main fleet
+    build_cost: 3000
+    upkeep_per_turn: 300
+    build_time_turns: 5
+
+  - name: Ironclad-Class Heavy Cruiser
+    type: heavy_cruiser
+    description: Well-armored cruiser carrying heavier guns, able to stand in a fight longer than lighter escorts
+    build_cost: 5000
+    upkeep_per_turn: 500
+    build_time_turns: 7
+
+  - name: Vanguard-Class Battlecruiser
+    type: battlecruiser
+    description: Heavily armed capital ship trading armor for speed, used to run down and destroy enemy cruisers
+    build_cost: 8000
+    upkeep_per_turn: 800
+    build_time_turns: 10
+
+  - name: Dreadnought-Class Battleship
+    type: battleship
+    description: Heavily armored capital ship carrying the fleet's largest guns, the backbone of the main battle line
+    build_cost: 12000
+    upkeep_per_turn: 1200
+    build_time_turns: 14
+
+  - name: Silent Depths-Class Submarine
+    type: submarine
+    description: Submersible vessel used to interdict enemy shipping and scout undetected
+    build_cost: 4000
+    upkeep_per_turn: 350
+    build_time_turns: 6
+
+  - name: Seahawk-Class Escort Carrier
+    type: escort_carrier
+    description: Small carrier converted from a merchant hull, providing air cover for convoys and task forces
+    build_cost: 6000
+    upkeep_per_turn: 600
+    build_time_turns: 9
+
+  - name: Horizon-Class Fleet Carrier
+    type: fleet_carrier
+    description: Large purpose-built carrier projecting air power far from home waters, a prized high-value target
+    build_cost: 15000
+    upkeep_per_turn: 1500
+    build_time_turns: 16
+
+  - name: Merchant Transport
+    type: transport
+    description: Unarmed or lightly armed vessel used to move troops and supplies across water
+    build_cost: 1000
+    upkeep_per_turn: 80
+    build_time_turns: 2
+
+  - name: Fleet Oiler
+    type: support
+    description: Support vessel providing fuel and supply replenishment to extend the fleet's operational range
+    build_cost: 2000
+    upkeep_per_turn: 180
+    build_time_turns: 4

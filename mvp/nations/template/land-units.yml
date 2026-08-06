@@ -1,0 +1,77 @@
+# Land Units Template
+#
+# Recruitable land unit types for a nation's Order of Battle
+# (see mvp/product/mvp-army-oob.md). Replace the example entries below
+# with your nation's actual unit types; costs/upkeep use whatever
+# in-game currency your nation's budget uses (see mvp-budget.md).
+#
+# type: infantry | mountain_infantry | elite_infantry | cavalry |
+#       light_cavalry | artillery | support_weapons
+# weapons: crew-served weapons (guns, etc.) per unit — only artillery
+#          and support_weapons carry a count, all other types are 0
+
+land_units:
+  # --- EXAMPLE ENTRIES — replace with your nation's actual unit types ---
+
+  - name: Peasant Levy Battalion
+    type: infantry
+    description: Poorly equipped conscripts, cheap but unreliable in prolonged engagements
+    recruit_cost: 500
+    upkeep_per_turn: 50
+    build_time_turns: 1
+    men: 800
+    weapons: 0
+
+  - name: Line Infantry Regiment
+    type: infantry
+    description: Standing professional infantry, the backbone of the standing army
+    recruit_cost: 1200
+    upkeep_per_turn: 150
+    build_time_turns: 2
+    men: 1000
+    weapons: 0
+
+  - name: Alpine Rifle Battalion
+    type: mountain_infantry
+    description: Light infantry trained and equipped for high-altitude and rough terrain operations
+    recruit_cost: 1500
+    upkeep_per_turn: 180
+    build_time_turns: 3
+    men: 700
+    weapons: 0
+
+  - name: Royal Guard Regiment
+    type: elite_infantry
+    description: Highly trained, well-equipped veteran infantry reserved for critical engagements
+    recruit_cost: 3000
+    upkeep_per_turn: 400
+    build_time_turns: 5
+    men: 900
+    weapons: 0
+
+  - name: Dragoon Squadron
+    type: cavalry
+    description: Mounted infantry suited for scouting, flanking, and rapid response
+    recruit_cost: 1800
+    upkeep_per_turn: 220
+    build_time_turns: 3
+    men: 400
+    weapons: 0
+
+  - name: Field Artillery Battery
+    type: artillery
+    description: Towed field guns providing indirect fire support for infantry advances
+    recruit_cost: 2500
+    upkeep_per_turn: 300
+    build_time_turns: 4
+    men: 150
+    weapons: 12
+
+  - name: Machine Gun Support Company
+    type: support_weapons
+    description: Heavy machine gun crews attached to infantry formations to anchor defensive lines
+    recruit_cost: 1000
+    upkeep_per_turn: 120
+    build_time_turns: 2
+    men: 200
+    weapons: 24

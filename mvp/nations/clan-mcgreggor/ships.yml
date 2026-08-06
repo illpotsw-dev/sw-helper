@@ -1,0 +1,55 @@
+# Clan McGreggor — Ships
+#
+# Recruitable ship classes for Clan McGreggor's Order of Battle.
+# Follows the schema defined in mvp/nations/template/ships.yml.
+# Currency: IP (Clan McGreggor's in-game currency, per this nation's budget).
+
+ships:
+  - name: Ironclad Galley of the Clans
+    type: heavy_cruiser
+    description: >-
+      A steam-powered coastal warship built around a heavy timber hull
+      reinforced with iron bands and limited iron plating. Propulsion is
+      provided solely by an early cold-fire steam engine driving a single
+      screw, resulting in very low speed and extremely limited range.
+      Armament consists of twelve 32-pounder smoothbore cannons per side
+      (24 total) and two 24-pounder bow guns. The ship is slow and
+      obsolete, but devastating at close range in confined waters. It
+      serves as Clan McGreggor's armored-cruiser equivalent, dominating
+      narrow seas through endurance and overwhelming broadside fire.
+    build_cost: 300
+    upkeep_per_turn: 5
+    build_time_turns: 3
+
+  - name: Border Reaver-Class Raiding Support Ship
+    type: destroyer
+    description: >-
+      A small steam-powered vessel designed to support coastal raids and
+      boarding actions. Armed with a single 12-pounder smoothbore cannon
+      in an open pivot mount and multiple swivel guns. Lightly built and
+      unarmored, it relies on speed, surprise, and aggression to strike
+      trade routes and withdraw before heavier forces arrive.
+    build_cost: 50
+    upkeep_per_turn: 0.5
+    build_time_turns: 2
+
+  - name: Clansman-Class Steam Transport (Ocean)
+    type: transport
+    description: >-
+      An unarmed ocean-going steam transport built with a heavy wooden
+      hull reinforced by iron bands. It carries troops, supplies,
+      artillery, and plunder, operating close to friendly coasts under
+      escort.
+    build_cost: 20
+    upkeep_per_turn: 0.25
+    build_time_turns: 1
+
+  - name: Glenrunner-Class River Transport
+    type: transport
+    description: >-
+      A shallow-draft river steamer used to move troops and supplies
+      inland. Slow and unarmored, but essential for sustaining operations
+      away from the coast.
+    build_cost: 10
+    upkeep_per_turn: 0.1
+    build_time_turns: 1
