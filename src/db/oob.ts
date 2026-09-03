@@ -1,5 +1,10 @@
 import { query, transaction } from './client.ts'
-import type { Statement } from './protocol.ts'
+import {
+  designStatements,
+  insertUnitType,
+  type NewDesign,
+} from './statements.ts'
+export type { NewDesign }
 import type {
   Design,
   Echelon,
@@ -82,25 +87,10 @@ export async function listUnitTypes(): Promise<UnitType[]> {
 
 /** Replaces the whole catalog. Fails if a unit still references a type being removed. */
 export async function replaceUnitTypes(types: readonly UnitType[]): Promise<void> {
-  await transaction([
-    { sql: 'DELETE FROM unit_types' },
-    ...types.map((type) => ({
-      sql: `INSERT INTO unit_types
-        (name, type, description, recruit_cost, upkeep_per_turn,
-         build_time_turns, men, weapons)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      params: [
-        type.name,
-        type.category,
-        type.description,
-        type.recruitCost,
-        type.upkeepPerTurn,
-        type.buildTimeTurns,
-        type.men,
-        type.weapons,
-      ],
-    })),
-  ], 'Replace unit type catalog')
+  await transaction(
+    [{ sql: 'DELETE FROM unit_types' }, ...types.map(insertUnitType)],
+    'Replace unit type catalog',
+  )
 }
 
 export async function listDesigns(): Promise<Design[]> {
@@ -142,44 +132,6 @@ async function nextId(table: 'oob_designs' | 'oob_formations' | 'oob_units') {
   return num(rows[0]?.max_id) + 1
 }
 
-const insertFormation = (formation: Formation): Statement => ({
-  sql: `INSERT INTO oob_formations
-    (id, design_id, parent_id, echelon, name, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?)`,
-  params: [
-    formation.id,
-    formation.designId,
-    formation.parentId,
-    formation.echelon,
-    formation.name,
-    formation.sortOrder,
-  ],
-})
-
-const insertUnit = (unit: Unit): Statement => ({
-  sql: `INSERT INTO oob_units
-    (id, formation_id, unit_type, designation, men, weapons, equipment, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  params: [
-    unit.id,
-    unit.formationId,
-    unit.unitType,
-    unit.designation,
-    unit.men,
-    unit.weapons,
-    unit.equipment,
-    unit.sortOrder,
-  ],
-})
-
-export type NewDesign = {
-  name: string
-  note?: string
-  isLive?: boolean
-  formations: readonly Formation[]
-  units: readonly Unit[]
-}
-
 /**
  * Writes a design and its whole tree in one transaction, so a failure part
  * way through leaves nothing behind.
@@ -188,43 +140,47 @@ export type NewDesign = {
  * rewritten to avoid colliding with rows already stored. Reading the current
  * maximums first is safe because the OPFS pool admits a single connection.
  */
-export async function createDesign(design: NewDesign): Promise<number> {
-  const [designId, formationBase, unitBase] = await Promise.all([
+const nextIds = () =>
+  Promise.all([
     nextId('oob_designs'),
     nextId('oob_formations'),
     nextId('oob_units'),
   ])
 
-  const formationId = new Map(
-    design.formations.map((f, index) => [f.id, formationBase + index]),
+export async function createDesign(design: NewDesign): Promise<number> {
+  const [designId, formationBase, unitBase] = await nextIds()
+  await transaction(
+    designStatements(designId, formationBase, unitBase, design),
+    `Create design "${design.name}"`,
   )
-
-  const formations = design.formations.map((formation, index) => ({
-    ...formation,
-    id: formationBase + index,
-    designId,
-    parentId:
-      formation.parentId === null
-        ? null
-        : (formationId.get(formation.parentId) ?? null),
-  }))
-
-  const units = design.units.map((unit, index) => ({
-    ...unit,
-    id: unitBase + index,
-    formationId: formationId.get(unit.formationId) ?? unit.formationId,
-  }))
-
-  await transaction([
-    {
-      sql: 'INSERT INTO oob_designs (id, name, note, is_live) VALUES (?, ?, ?, ?)',
-      params: [designId, design.name, design.note ?? '', design.isLive ? 1 : 0],
-    },
-    ...formations.map(insertFormation),
-    ...units.map(insertUnit),
-  ], `Create design "${design.name}"`)
-
   return designId
+}
+
+/**
+ * Loads a nation's catalog and starting order of battle together, as one
+ * transaction and one undo entry — a half-seeded nation whose units reference
+ * types that were never written would fail the exact-match rule on every row.
+ */
+export async function seedNation(input: {
+  label: string
+  unitTypes: readonly UnitType[]
+  design: NewDesign
+}): Promise<number> {
+  const [designId, formationBase, unitBase] = await nextIds()
+  await transaction(
+    [
+      ...input.unitTypes.map(insertUnitType),
+      ...designStatements(designId, formationBase, unitBase, input.design),
+    ],
+    input.label,
+  )
+  return designId
+}
+
+/** Whether this browser already holds a nation. */
+export async function hasNation(): Promise<boolean> {
+  const rows = await query('SELECT count(*) AS n FROM oob_designs')
+  return Number(rows[0]?.n ?? 0) > 0
 }
 
 export async function deleteDesign(designId: number): Promise<void> {
