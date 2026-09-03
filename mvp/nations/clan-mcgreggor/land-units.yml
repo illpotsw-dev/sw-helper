@@ -4,9 +4,13 @@
 # Follows the schema defined in mvp/nations/template/land-units.yml.
 # Currency: IP (Clan McGreggor's in-game currency, per this nation's budget).
 #
-# Note: weapons is 0 for all units below — per the template schema, only
-# artillery/support_weapons types carry a weapons count; infantry,
-# mountain_infantry, and elite_infantry types do not.
+# Note: men and weapons are mutually exclusive here. Artillery and
+# support_weapons types are tracked by gun count only, so their men is 0;
+# every other type is tracked by headcount only, so its weapons is 0.
+#
+# Entries marked PLACEHOLDER COSTS were added to cover units already
+# fielded in army-oob.yml; their recruit cost, upkeep, and build time are
+# rough guesses and need real values from the game's ruleset.
 
 land_units:
   - name: Clan Levies
@@ -77,3 +81,90 @@ land_units:
     build_time_turns: 1
     men: 500
     weapons: 0
+
+  # --- PLACEHOLDER COSTS below — see note at top of file ---
+
+  - name: Highlander Sharpshooters
+    type: mountain_infantry
+    description: >-
+      Marksmen selected from the upland clans and issued smokeless-powder
+      rifles well ahead of the rest of the army. Deployed in small numbers
+      ahead of the Highlander battalions to pick off officers, gun crews,
+      and scouts at ranges the line units cannot answer.
+    recruit_cost: 45
+    upkeep_per_turn: 2
+    build_time_turns: 1
+    men: 450
+    weapons: 0
+
+  - name: Garrison Infantry
+    type: infantry
+    description: >-
+      Static troops raised to hold a fortified town and its works. Poorly
+      suited to maneuver warfare and rarely moved from their assigned city,
+      but cheap to maintain and reliable behind prepared defenses.
+    recruit_cost: 15
+    upkeep_per_turn: 0.4
+    build_time_turns: 1
+    men: 1000
+    weapons: 0
+
+  - name: Light Artillery Battery
+    type: artillery
+    description: >-
+      Towed light field guns attached to brigades for direct support of an
+      infantry advance. Mobile enough to keep pace with the line, but
+      lacking the weight of shell to reduce fortifications.
+    recruit_cost: 40
+    upkeep_per_turn: 2
+    build_time_turns: 1
+    men: 0
+    weapons: 20
+
+  - name: Medium Artillery Battery
+    type: artillery
+    description: >-
+      Heavier towed guns held at army level and allocated where the weight
+      of fire is most needed. Slower to displace than the light batteries
+      but capable of sustained bombardment.
+    recruit_cost: 60
+    upkeep_per_turn: 3
+    build_time_turns: 2
+    men: 0
+    weapons: 20
+
+  - name: Siege Artillery Battery
+    type: artillery
+    description: >-
+      Very heavy guns intended to reduce walls, forts, and hardened
+      positions. Extremely slow to move and emplace, so they are assigned to
+      fixed garrisons or deliberate sieges rather than field operations.
+    recruit_cost: 100
+    upkeep_per_turn: 5
+    build_time_turns: 3
+    men: 0
+    weapons: 4
+
+  - name: Machine Gun Battery
+    type: support_weapons
+    description: >-
+      Massed repeating-gun crews attached to brigades to anchor a defensive
+      line or cover a withdrawal. The clans field these in unusually large
+      numbers to compensate for the poor marksmanship of levy infantry.
+    recruit_cost: 30
+    upkeep_per_turn: 1.5
+    build_time_turns: 1
+    men: 0
+    weapons: 48
+
+  - name: Autocannon Battery
+    type: support_weapons
+    description: >-
+      Rapid-firing light cannon emplaced in fortified positions, used
+      against massed infantry assaults and light shipping approaching a
+      defended harbor.
+    recruit_cost: 50
+    upkeep_per_turn: 2.5
+    build_time_turns: 2
+    men: 0
+    weapons: 12

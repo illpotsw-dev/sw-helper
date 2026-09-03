@@ -1,0 +1,90 @@
+# Army Order of Battle Template
+#
+# A nation's actual formation tree and raised units (see
+# mvp/product/mvp-army-oob.md). Two flat lists rather than nested YAML —
+# nesting five levels deep gets hard to hand-edit correctly, so formations
+# reference their parent by id instead of containing it directly.
+#
+# formations: the tree's nodes
+#   id:        short, unique, kebab-case — used only to link parent/child
+#              and unit attachments below, never shown to the player
+#   parent_id: id of the containing formation, or null for an independent
+#              formation that sits at the top of the tree
+#   echelon:   NATO tier symbol — XXXXX | XXXX | XXX | XX | X | III | II | I
+#              (fixed structure; see mvp/nations/template/echelons.yml for
+#              what each symbol is called for this nation)
+#   name:      this formation's actual name, e.g. "5th Highland Division"
+#
+# units: individual raised units, one entry per unit
+#   formation_id: id of the formation this unit reports to — does not have
+#                 to be a bottom-tier formation; e.g. a unit can attach
+#                 directly to a Corps as unassigned "corps troops"
+#   name:         this unit's designation, e.g. "II/I Levy Battalion"
+#   unit_type:    must match a `name` in this nation's land-units.yml —
+#                 that's where its cost/upkeep/description live
+#   men:          headcount this unit has right now, not the type's
+#                 full-strength baseline (a battalion that has taken losses
+#                 records what it actually has)
+#   weapons:      guns this unit has right now, same idea. A unit is
+#                 measured in men or in guns, never both — artillery and
+#                 support_weapons types carry a gun count and 0 men, every
+#                 other type the reverse (see land-units.yml)
+#   equipment:    what this particular unit is armed with, tracked per unit
+#                 because two units of the same type are often equipped
+#                 differently
+
+formations:
+  # --- EXAMPLE ENTRIES — replace with your nation's actual formations ---
+
+  - id: northern-theatre
+    parent_id: null
+    echelon: XXXXX
+    name: Northern Theatre
+
+  - id: 2nd-army
+    parent_id: northern-theatre
+    echelon: XXXX
+    name: 2nd Army
+
+  - id: iv-corps
+    parent_id: 2nd-army
+    echelon: XXX
+    name: IV Corps
+
+  - id: 5th-division
+    parent_id: iv-corps
+    echelon: XX
+    name: 5th Division
+
+units:
+  # A division's organic units
+  - formation_id: 5th-division
+    name: I/V Line Regiment
+    unit_type: Line Infantry Regiment
+    men: 1000
+    weapons: 0
+    equipment: "Pattern 1886 Rifle (.45 Caliber)"
+
+  # Below full strength after taking losses — record what it has now
+  - formation_id: 5th-division
+    name: II/V Line Regiment
+    unit_type: Line Infantry Regiment
+    men: 685
+    weapons: 0
+    equipment: "Pattern 1886 Rifle (.45 Caliber)"
+
+  # Batteries are counted in guns, so men is 0
+  - formation_id: 5th-division
+    name: 5th Field Battery
+    unit_type: Field Artillery Battery
+    men: 0
+    weapons: 12
+    equipment: "80mm Field Gun"
+
+  # A unit held directly under the corps, not assigned to any division
+  - formation_id: iv-corps
+    name: 4th Machine Gun Company
+    unit_type: Machine Gun Support Company
+    men: 0
+    weapons: 24
+    equipment: "Heavy Machine Gun (.50 Caliber)"

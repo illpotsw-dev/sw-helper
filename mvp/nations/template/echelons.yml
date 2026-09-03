@@ -1,0 +1,45 @@
+# Echelon Tiers Template
+#
+# Names the NATO formation tiers used by a nation's Order of Battle
+# (see mvp/product/mvp-army-oob.md). The tiers themselves — the symbol and
+# their order from smallest to largest — are fixed and the same for every
+# nation; only the `name` of each tier is yours to change (e.g. rename
+# Corps to "Armeekorps", or Division to "Reinforced Division").
+#
+# symbol: NATO echelon/size notation, written after a formation's
+#         designation (e.g. a "5th Highland Division" at the XX tier is
+#         written "5 XX")
+# level:  fixed ordering, higher = larger formation — do not change
+
+echelons:
+  - symbol: XXXXX
+    level: 8
+    name: Theatre
+
+  - symbol: XXXX
+    level: 7
+    name: Army
+
+  - symbol: XXX
+    level: 6
+    name: Corps
+
+  - symbol: XX
+    level: 5
+    name: Division
+
+  - symbol: X
+    level: 4
+    name: Brigade
+
+  - symbol: III
+    level: 3
+    name: Regiment
+
+  - symbol: II
+    level: 2
+    name: Battalion
+
+  - symbol: I
+    level: 1
+    name: Company

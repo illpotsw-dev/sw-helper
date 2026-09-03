@@ -1,0 +1,541 @@
+# Clan McGreggor — Army Order of Battle
+#
+# Clan McGreggor's formation tree and currently raised units.
+# Follows the schema defined in mvp/nations/template/army-oob.yml;
+# unit_type values reference mvp/nations/clan-mcgreggor/land-units.yml.
+#
+# Two independent (parent_id: null) formations:
+#   - McGreggor Army (XXXX) — the field army
+#   - Portree Garrison (X)  — garrison troops at the city of Portree,
+#                             raised by Clan Flannery but held separately
+#                             from the field army
+#
+# Note: artillery, machine gun, and autocannon batteries are tracked by gun
+# count only — `men` is 0 for those units by design, not missing data.
+
+formations:
+  - id: mcgreggor-army
+    parent_id: null
+    echelon: XXXX
+    name: McGreggor Army
+
+  # --- I. Infantry Division ---
+  - id: 1st-infantry-division
+    parent_id: mcgreggor-army
+    echelon: XX
+    name: I. Infantry Division — The Stone Line
+
+  - id: 1st-infantry-brigade
+    parent_id: 1st-infantry-division
+    echelon: X
+    name: 1st Infantry Brigade
+
+  - id: 2nd-infantry-brigade
+    parent_id: 1st-infantry-division
+    echelon: X
+    name: 2nd Infantry Brigade
+
+  - id: 3rd-infantry-brigade
+    parent_id: 1st-infantry-division
+    echelon: X
+    name: 3rd Infantry Brigade
+
+  # --- II. Infantry Division ---
+  - id: 2nd-infantry-division
+    parent_id: mcgreggor-army
+    echelon: XX
+    name: II. Infantry Division — Rising Mist
+
+  - id: 4th-infantry-brigade
+    parent_id: 2nd-infantry-division
+    echelon: X
+    name: 4th Infantry Brigade
+
+  - id: 5th-infantry-brigade
+    parent_id: 2nd-infantry-division
+    echelon: X
+    name: 5th Infantry Brigade
+
+  - id: 6th-infantry-brigade
+    parent_id: 2nd-infantry-division
+    echelon: X
+    name: 6th Infantry Brigade
+
+  # --- Divisions holding their units directly, with no brigade layer ---
+  - id: cavalry-division
+    parent_id: mcgreggor-army
+    echelon: XX
+    name: Cavalry Division — Woden's Avengers
+
+  - id: mountain-force
+    parent_id: mcgreggor-army
+    echelon: XX
+    name: Mountain Force — The Blood Tithe
+
+  # --- Clan Flannery's field contribution, attached to the McGreggor Army.
+  # The source roster gives only a single 5540-man total, so the brigade and
+  # battalion breakdown below is generated to fit the tree and should be
+  # replaced with Flannery's real organization. ---
+  - id: flannery-division
+    parent_id: mcgreggor-army
+    echelon: XX
+    name: Flannery Division
+
+  - id: 1st-flannery-brigade
+    parent_id: flannery-division
+    echelon: X
+    name: 1st Flannery Brigade
+
+  - id: 2nd-flannery-brigade
+    parent_id: flannery-division
+    echelon: X
+    name: 2nd Flannery Brigade
+
+  # --- Independent garrison, not part of the field army ---
+  - id: portree-garrison
+    parent_id: null
+    echelon: X
+    name: Portree Garrison
+
+units:
+  # ============================================================
+  # I. Infantry Division — The Stone Line
+  # ============================================================
+
+  # --- 1st Infantry Brigade ---
+  - formation_id: 1st-infantry-brigade
+    name: I/I Levy Battalion
+    unit_type: Clan Levies
+    men: 1000
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 1st-infantry-brigade
+    name: II/I Levy Battalion
+    unit_type: Clan Levies
+    men: 1000
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 1st-infantry-brigade
+    name: III/I Levy Battalion
+    unit_type: Clan Levies
+    men: 835
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 1st-infantry-brigade
+    name: 1st Light Artillery Battery
+    unit_type: Light Artillery Battery
+    men: 0
+    weapons: 20
+    equipment: "Vanguard Light Field Gun (12-Pounder)"
+
+  - formation_id: 1st-infantry-brigade
+    name: 1st Machine Gun Battery
+    unit_type: Machine Gun Battery
+    men: 0
+    weapons: 48
+    equipment: "Cyclone Repeating Gun (.50 Caliber)"
+
+  # --- 2nd Infantry Brigade ---
+  - formation_id: 2nd-infantry-brigade
+    name: I/II Levy Battalion
+    unit_type: Clan Levies
+    men: 530
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 2nd-infantry-brigade
+    name: II/II Levy Battalion
+    unit_type: Clan Levies
+    men: 570
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 2nd-infantry-brigade
+    name: III/II Levy Battalion
+    unit_type: Clan Levies
+    men: 685
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 2nd-infantry-brigade
+    name: 2nd Light Artillery Battery
+    unit_type: Light Artillery Battery
+    men: 0
+    weapons: 20
+    equipment: "Vanguard Light Field Gun (12-Pounder)"
+
+  - formation_id: 2nd-infantry-brigade
+    name: 2nd Machine Gun Battery
+    unit_type: Machine Gun Battery
+    men: 0
+    weapons: 40
+    equipment: "Cyclone Repeating Gun (.50 Caliber)"
+
+  # --- 3rd Infantry Brigade ---
+  - formation_id: 3rd-infantry-brigade
+    name: I/III Levy Battalion
+    unit_type: Clan Levies
+    men: 695
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 3rd-infantry-brigade
+    name: II/III Levy Battalion
+    unit_type: Clan Levies
+    men: 710
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 3rd-infantry-brigade
+    name: III/III Levy Battalion
+    unit_type: Clan Levies
+    men: 730
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 3rd-infantry-brigade
+    name: 3rd Machine Gun Battery
+    unit_type: Machine Gun Battery
+    men: 0
+    weapons: 44
+    equipment: "Cyclone Repeating Gun (.50 Caliber)"
+
+  # ============================================================
+  # II. Infantry Division — Rising Mist
+  # ============================================================
+
+  # --- 4th Infantry Brigade ---
+  - formation_id: 4th-infantry-brigade
+    name: I/IV Levy Battalion
+    unit_type: Clan Levies
+    men: 770
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 4th-infantry-brigade
+    name: II/IV Levy Battalion
+    unit_type: Clan Levies
+    men: 760
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 4th-infantry-brigade
+    name: III/IV Levy Battalion
+    unit_type: Clan Levies
+    men: 770
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 4th-infantry-brigade
+    name: 4th Machine Gun Battery
+    unit_type: Machine Gun Battery
+    men: 0
+    weapons: 50
+    equipment: "Cyclone Repeating Gun (.50 Caliber)"
+
+  # --- 5th Infantry Brigade ---
+  - formation_id: 5th-infantry-brigade
+    name: I/V Levy Battalion
+    unit_type: Clan Levies
+    men: 720
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 5th-infantry-brigade
+    name: II/V Levy Battalion
+    unit_type: Clan Levies
+    men: 710
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 5th-infantry-brigade
+    name: III/V Levy Battalion
+    unit_type: Clan Levies
+    men: 730
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 5th-infantry-brigade
+    name: 5th Machine Gun Battery
+    unit_type: Machine Gun Battery
+    men: 0
+    weapons: 50
+    equipment: "Cyclone Repeating Gun (.50 Caliber)"
+
+  # --- 6th Infantry Brigade ---
+  - formation_id: 6th-infantry-brigade
+    name: I/VI Levy Battalion
+    unit_type: Clan Levies
+    men: 820
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 6th-infantry-brigade
+    name: II/VI Levy Battalion
+    unit_type: Clan Levies
+    men: 830
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 6th-infantry-brigade
+    name: III/VI Levy Battalion
+    unit_type: Clan Levies
+    men: 810
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 6th-infantry-brigade
+    name: 6th Machine Gun Battery
+    unit_type: Machine Gun Battery
+    men: 0
+    weapons: 50
+    equipment: "Cyclone Repeating Gun (.50 Caliber)"
+
+  # ============================================================
+  # Cavalry Division — Woden's Avengers
+  # ============================================================
+
+  - formation_id: cavalry-division
+    name: I Mounted Borders Battalion
+    unit_type: Mounted Borders
+    men: 770
+    weapons: 0
+    equipment: "Unarmed"
+
+  - formation_id: cavalry-division
+    name: II Mounted Borders Battalion
+    unit_type: Mounted Borders
+    men: 910
+    weapons: 0
+    equipment: "Unarmed"
+
+  - formation_id: cavalry-division
+    name: III Mounted Borders Battalion
+    unit_type: Mounted Borders
+    men: 935
+    weapons: 0
+    equipment: "Unarmed"
+
+  - formation_id: cavalry-division
+    name: IV Mounted Borders Battalion
+    unit_type: Mounted Borders
+    men: 880
+    weapons: 0
+    equipment: "Unarmed"
+
+  - formation_id: cavalry-division
+    name: 3rd Light Artillery Battery
+    unit_type: Light Artillery Battery
+    men: 0
+    weapons: 18
+    equipment: "Glenforge 6-Pounder Smoothbore Cannon"
+
+  - formation_id: cavalry-division
+    name: 4th Light Artillery Battery
+    unit_type: Light Artillery Battery
+    men: 0
+    weapons: 18
+    equipment: "Glenforge 6-Pounder Smoothbore Cannon"
+
+  # ============================================================
+  # Mountain Force — The Blood Tithe
+  # ============================================================
+
+  - formation_id: mountain-force
+    name: I Highlander Sharpshooters
+    unit_type: Highlander Sharpshooters
+    men: 430
+    weapons: 0
+    equipment: "Lexington Pattern Rifle (.30-06 Lexington Smokeless)"
+
+  - formation_id: mountain-force
+    name: II Highlander Sharpshooters
+    unit_type: Highlander Sharpshooters
+    men: 440
+    weapons: 0
+    equipment: "Lexington Pattern Rifle (.30-06 Lexington Smokeless)"
+
+  - formation_id: mountain-force
+    name: I Highlander Battalion
+    unit_type: Highlanders
+    men: 975
+    weapons: 0
+    equipment: "Barclay Hornets (7x57mm)"
+
+  - formation_id: mountain-force
+    name: II Highlander Battalion
+    unit_type: Highlanders
+    men: 945
+    weapons: 0
+    equipment: "Barclay Hornets (7x57mm)"
+
+  - formation_id: mountain-force
+    name: III Highlander Battalion
+    unit_type: Highlanders
+    men: 920
+    weapons: 0
+    equipment: "Barclay Hornets (7x57mm)"
+
+  - formation_id: mountain-force
+    name: Mountain Light Artillery Battery
+    unit_type: Light Artillery Battery
+    men: 0
+    weapons: 8
+    equipment: "Rossenheim Light Artillery"
+
+  - formation_id: mountain-force
+    name: Mountain Machine Gun Battery
+    unit_type: Machine Gun Battery
+    men: 0
+    weapons: 20
+    equipment: "Rossenheim Machine Gun (11mm)"
+
+  # ============================================================
+  # Flannery Division
+  # (generated breakdown of the source roster's single 5540-man entry)
+  # ============================================================
+
+  - formation_id: 1st-flannery-brigade
+    name: I/I Flannery Levy Battalion
+    unit_type: Clan Levies
+    men: 925
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 1st-flannery-brigade
+    name: II/I Flannery Levy Battalion
+    unit_type: Clan Levies
+    men: 925
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 1st-flannery-brigade
+    name: III/I Flannery Levy Battalion
+    unit_type: Clan Levies
+    men: 920
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 2nd-flannery-brigade
+    name: I/II Flannery Levy Battalion
+    unit_type: Clan Levies
+    men: 925
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 2nd-flannery-brigade
+    name: II/II Flannery Levy Battalion
+    unit_type: Clan Levies
+    men: 925
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: 2nd-flannery-brigade
+    name: III/II Flannery Levy Battalion
+    unit_type: Clan Levies
+    men: 920
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  # ============================================================
+  # Army Reserve — held directly under the McGreggor Army (XXXX),
+  # not assigned to any division
+  # ============================================================
+
+  - formation_id: mcgreggor-army
+    name: I Clan Guard Elite Battalion
+    unit_type: Clan's Guard
+    men: 660
+    weapons: 0
+    equipment: "Barclay Hornets (7x57mm)"
+
+  - formation_id: mcgreggor-army
+    name: II Clan Guard Elite Battalion
+    unit_type: Clan's Guard
+    men: 500
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: mcgreggor-army
+    name: III Clan Guard Elite Battalion
+    unit_type: Clan's Guard
+    men: 500
+    weapons: 0
+    equipment: "Warden Rifle (.45 Caliber)"
+
+  - formation_id: mcgreggor-army
+    name: 1st Medium Artillery Battery
+    unit_type: Medium Artillery Battery
+    men: 0
+    weapons: 20
+    equipment: "18-Pounder Pattern M Field Gun"
+
+  - formation_id: mcgreggor-army
+    name: 2nd Medium Artillery Battery
+    unit_type: Medium Artillery Battery
+    men: 0
+    weapons: 20
+    equipment: "18-Pounder Pattern M Field Gun"
+
+  - formation_id: mcgreggor-army
+    name: 3rd Medium Artillery Battery
+    unit_type: Medium Artillery Battery
+    men: 0
+    weapons: 20
+    equipment: "18-Pounder Pattern M Field Gun"
+
+  - formation_id: mcgreggor-army
+    name: 4th Medium Artillery Battery
+    unit_type: Medium Artillery Battery
+    men: 0
+    weapons: 20
+    equipment: "18-Pounder Pattern M Field Gun"
+
+  - formation_id: mcgreggor-army
+    name: 5th Medium Artillery Battery
+    unit_type: Medium Artillery Battery
+    men: 0
+    weapons: 20
+    equipment: "18-Pounder Pattern M Field Gun"
+
+  - formation_id: mcgreggor-army
+    name: 6th Medium Artillery Battery
+    unit_type: Medium Artillery Battery
+    men: 0
+    weapons: 20
+    equipment: "18-Pounder Pattern M Field Gun"
+
+  # ============================================================
+  # Portree Garrison — independent of the field army
+  # ============================================================
+
+  - formation_id: portree-garrison
+    name: Portree Garrison Infantry
+    unit_type: Garrison Infantry
+    men: 3400
+    weapons: 0
+    equipment: "Einzelgänger (.68 Caliber)"
+
+  - formation_id: portree-garrison
+    name: Portree Garrison Donnerwulf Battery
+    unit_type: Autocannon Battery
+    men: 0
+    weapons: 12
+    equipment: "Donnerwulf (30mm)"
+
+  - formation_id: portree-garrison
+    name: Portree Garrison Artillery Battery
+    unit_type: Medium Artillery Battery
+    men: 0
+    weapons: 6
+    equipment: "Rossenheim Medium Artillery Gun"
+
+  - formation_id: portree-garrison
+    name: Portree Garrison Siege Artillery Battery
+    unit_type: Siege Artillery Battery
+    men: 0
+    weapons: 1
+    equipment: "Rossenheim Siege Gun"

@@ -7,8 +7,10 @@
 #
 # type: infantry | mountain_infantry | elite_infantry | cavalry |
 #       light_cavalry | artillery | support_weapons
-# weapons: crew-served weapons (guns, etc.) per unit — only artillery
-#          and support_weapons carry a count, all other types are 0
+# men / weapons: a unit type is measured by one or the other, never both.
+#                artillery and support_weapons are counted in guns, so
+#                their men is 0; every other type is counted in men, so
+#                its weapons is 0.
 
 land_units:
   # --- EXAMPLE ENTRIES — replace with your nation's actual unit types ---
@@ -64,7 +66,7 @@ land_units:
     recruit_cost: 2500
     upkeep_per_turn: 300
     build_time_turns: 4
-    men: 150
+    men: 0
     weapons: 12
 
   - name: Machine Gun Support Company
@@ -73,5 +75,5 @@ land_units:
     recruit_cost: 1000
     upkeep_per_turn: 120
     build_time_turns: 2
-    men: 200
+    men: 0
     weapons: 24
