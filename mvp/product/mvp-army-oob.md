@@ -1,6 +1,7 @@
 # Feature Spec — Order of Battle (Army)
 
 Parent doc: [mvp.md](mvp.md), Section 5 (Key Features → MVP).
+Editing/reorganizing surface: [mvp-oob-designer.md](mvp-oob-designer.md).
 
 ## 1. Overview
 The Army Order of Battle is a persistent, structured **tree of formations** — not a flat unit list. Players build up a hierarchy (e.g. Theatre → Army → Corps → Division) and attach actual units to it; the app rolls up strength/upkeep at every level and formats the current tree into Discord-ready text on demand. Unit upkeep values are entered by the player per the game's fixed ruleset (the app does not encode that ruleset) and feed into the Turn Budget's upkeep total — see [mvp-budget.md](mvp-budget.md).

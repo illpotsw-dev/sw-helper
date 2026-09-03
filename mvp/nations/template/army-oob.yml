@@ -20,8 +20,13 @@
 #                 to be a bottom-tier formation; e.g. a unit can attach
 #                 directly to a Corps as unassigned "corps troops"
 #   name:         this unit's designation, e.g. "II/I Levy Battalion"
-#   unit_type:    must match a `name` in this nation's land-units.yml —
-#                 that's where its cost/upkeep/description live
+#   unit_type:    must match a `name` in this nation's land-units.yml
+#                 EXACTLY, character for character — that file is where the
+#                 type's cost/upkeep/description live. Define your unit
+#                 types there first; an OOB naming a type the catalog does
+#                 not have fails to import, and is not auto-created. Write
+#                 "Clan's Guard", not "Clan Guard Elite Battalion" — put the
+#                 unit's own designation in `name` instead.
 #   men:          headcount this unit has right now, not the type's
 #                 full-strength baseline (a battalion that has taken losses
 #                 records what it actually has)
