@@ -68,7 +68,11 @@ export async function renameEchelon(
   symbol: EchelonSymbol,
   name: string,
 ): Promise<void> {
-  await query('UPDATE echelons SET name = ? WHERE symbol = ?', [name, symbol])
+  await query(
+    'UPDATE echelons SET name = ? WHERE symbol = ?',
+    [name, symbol],
+    `Rename ${symbol} to "${name}"`,
+  )
 }
 
 export async function listUnitTypes(): Promise<UnitType[]> {
@@ -96,7 +100,7 @@ export async function replaceUnitTypes(types: readonly UnitType[]): Promise<void
         type.weapons,
       ],
     })),
-  ])
+  ], 'Replace unit type catalog')
 }
 
 export async function listDesigns(): Promise<Design[]> {
@@ -218,14 +222,18 @@ export async function createDesign(design: NewDesign): Promise<number> {
     },
     ...formations.map(insertFormation),
     ...units.map(insertUnit),
-  ])
+  ], `Create design "${design.name}"`)
 
   return designId
 }
 
 export async function deleteDesign(designId: number): Promise<void> {
   // Formations and units go with it via ON DELETE CASCADE.
-  await query('DELETE FROM oob_designs WHERE id = ?', [designId])
+  await query(
+    'DELETE FROM oob_designs WHERE id = ?',
+    [designId],
+    'Delete design',
+  )
 }
 
 export async function renameDesign(
@@ -233,11 +241,11 @@ export async function renameDesign(
   name: string,
   note: string,
 ): Promise<void> {
-  await query('UPDATE oob_designs SET name = ?, note = ? WHERE id = ?', [
-    name,
-    note,
-    designId,
-  ])
+  await query(
+    'UPDATE oob_designs SET name = ?, note = ? WHERE id = ?',
+    [name, note, designId],
+    `Rename design to "${name}"`,
+  )
 }
 
 /**
@@ -249,5 +257,5 @@ export async function promoteDesign(designId: number): Promise<void> {
   await transaction([
     { sql: 'UPDATE oob_designs SET is_live = 0 WHERE is_live = 1' },
     { sql: 'UPDATE oob_designs SET is_live = 1 WHERE id = ?', params: [designId] },
-  ])
+  ], 'Promote design to live')
 }

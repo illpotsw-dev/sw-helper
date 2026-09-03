@@ -21,9 +21,10 @@ Browser
 ├── Formatters (pure functions: tracker data → Discord markdown string)
 ├── YAML import parser (pasted text → tracker rows)
 └── SQLite (WASM + OPFS)
-    └── tables: nation_profile, echelons, unit_types,
-                oob_designs, oob_formations, oob_units,
-                navy_ships, stockpile_items, budget_entries
+    ├── tables: nation_profile, echelons, unit_types,
+    │           oob_designs, oob_formations, oob_units,
+    │           navy_ships, stockpile_items, budget_entries
+    └── undo/redo: undo_log, undo_actions + per-table triggers
 ```
 No network calls at runtime beyond loading the static app itself.
 
@@ -45,13 +46,28 @@ Schema statements run as `CREATE TABLE IF NOT EXISTS` on every open, with no mig
 
 Exact export formats per tracker are defined in their own feature specs (e.g. [mvp-army-oob.md](../product/mvp-army-oob.md), [mvp-budget.md](../product/mvp-budget.md)). The OOB editing surface is specified in [mvp-oob-designer.md](../product/mvp-oob-designer.md).
 
-## 5. Key Flows → Architecture
+## 5. Undo/Redo
+Undo and redo are app-wide and apply to every feature, not just the OOB. A feature does not opt in: **if it writes to a table, it is undoable.**
+
+The mechanism is SQLite's documented trigger pattern. Each user table carries INSERT/UPDATE/DELETE triggers that write the SQL needed to reverse the change into an `undo_log` table, with `undo_actions` grouping those log rows into user-visible steps. Triggers are generated from the live schema every time the database opens, so a table added by a later feature picks up undo automatically. Because the log lives in the database, history survives closing the tab.
+
+Three details carry the design:
+
+- **One request is one history entry.** The worker wraps every request in a transaction and records the log rows it produced as a single action, so a paste-import of sixty units undoes in one step rather than sixty. Reads produce no log rows and so never enter the history.
+- **Triggers stay armed while undoing.** The inverse of an inverse is the original change, so undoing an action records exactly what redo needs. Redo is the same code path in the other direction.
+- **Foreign keys are deferred during undo.** Replaying inverse statements passes through states that violate foreign keys even though the end state is sound — undoing a cascading delete is the clear case, since the parent's `BEFORE DELETE` trigger fires ahead of the cascade and reverse-order replay therefore reinserts children before parents. `PRAGMA defer_foreign_keys` moves the check to COMMIT, by which point every row is back.
+
+`PRAGMA recursive_triggers` is required rather than optional: without it SQLite skips delete triggers on rows removed by `ON DELETE CASCADE`, and undoing the deletion of a design would restore the design while silently losing every formation and unit under it.
+
+History is capped at the most recent 100 actions.
+
+## 6. Key Flows → Architecture
 - **First-time setup:** player pastes filled-in YAML → parser validates/maps it to the table rows above → written to SQLite → dashboard reads from SQLite.
 - **Edit a tracker:** UI writes directly to the relevant table; no intermediate draft state needed since there's no server round-trip.
 - **Generate a report:** UI reads current tracker rows → formatter produces Discord markdown → shown in Live Preview → Copy-to-Clipboard.
 - **Turn Budget:** formatter/query sums upkeep at render time rather than storing a duplicated total — army upkeep from the *live* design's oob_units joined to unit_types, plus navy_ships and stockpile_items. Saved (non-live) designs are excluded; they are planning artifacts and cost the nation nothing.
 
-## 6. Constraints & Risks
+## 7. Constraints & Risks
 - OPFS support varies on mobile browsers — must be verified on target devices (app is mobile-friendly per requirements).
 - No export/import of the SQLite data itself for MVP — clearing browser storage or switching devices loses data (accepted MVP limitation, see mvp.md Section 7).
 - Single nation per browser profile for MVP; no multi-nation switching.
