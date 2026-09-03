@@ -1,10 +1,12 @@
-import type { Request, Response } from './protocol'
+import type { Request, Response, Statement } from './protocol.ts'
+
+export type Rows = Record<string, unknown>[]
 
 let worker: Worker | null = null
 let nextId = 0
 const pending = new Map<
   number,
-  { resolve: (rows: Record<string, unknown>[]) => void; reject: (err: Error) => void }
+  { resolve: (rows: Rows[]) => void; reject: (err: Error) => void }
 >()
 
 function getWorker(): Worker {
@@ -23,14 +25,24 @@ function getWorker(): Worker {
   return worker
 }
 
-export function query(
-  sql: string,
-  params: unknown[] = [],
-): Promise<Record<string, unknown>[]> {
+function send(build: (id: number) => Request): Promise<Rows[]> {
   return new Promise((resolve, reject) => {
     const id = nextId++
     pending.set(id, { resolve, reject })
-    const request: Request = { id, sql, params }
-    getWorker().postMessage(request)
+    getWorker().postMessage(build(id))
   })
+}
+
+export async function query(sql: string, params: unknown[] = []): Promise<Rows> {
+  const results = await send((id) => ({ id, kind: 'query', sql, params }))
+  return results[0] ?? []
+}
+
+/**
+ * Runs every statement inside a single transaction, resolving with one result
+ * set per statement. Rejects — leaving the database untouched — if any of them
+ * fails.
+ */
+export function transaction(statements: Statement[]): Promise<Rows[]> {
+  return send((id) => ({ id, kind: 'transaction', statements }))
 }

@@ -2,8 +2,8 @@ import sqlite3InitModule, {
   type BindingSpec,
   type Database,
 } from '@sqlite.org/sqlite-wasm'
-import { SCHEMA_STATEMENTS } from './schema'
-import type { Request, Response } from './protocol'
+import { SCHEMA_STATEMENTS } from './schema.ts'
+import type { Request, Response, Statement } from './protocol.ts'
 
 let dbPromise: Promise<Database> | null = null
 
@@ -22,6 +22,15 @@ async function getDb(): Promise<Database> {
   return dbPromise
 }
 
+function run(db: Database, { sql, params }: Statement) {
+  return db.exec({
+    sql,
+    bind: params as BindingSpec | undefined,
+    rowMode: 'object',
+    returnValue: 'resultRows',
+  }) as Record<string, unknown>[]
+}
+
 // createSyncAccessHandle is only exposed inside a Worker in Chromium, so the
 // SAHPool VFS must be installed and driven from here, not the main thread.
 const ctx = self as unknown as {
@@ -30,19 +39,34 @@ const ctx = self as unknown as {
 }
 
 ctx.onmessage = async (event) => {
-  const { id, sql, params } = event.data
+  const request = event.data
   try {
     const db = await getDb()
-    const rows = db.exec({
-      sql,
-      bind: params as BindingSpec | undefined,
-      rowMode: 'object',
-      returnValue: 'resultRows',
-    }) as Record<string, unknown>[]
-    ctx.postMessage({ id, ok: true, rows })
+    if (request.kind === 'query') {
+      ctx.postMessage({ id: request.id, ok: true, rows: [run(db, request)] })
+      return
+    }
+    // Either every statement lands or none does. Imports depend on this:
+    // a tree half-written by a failure partway through is worse than no
+    // tree at all.
+    db.exec('BEGIN')
+    try {
+      const rows = request.statements.map((statement) => run(db, statement))
+      db.exec('COMMIT')
+      ctx.postMessage({ id: request.id, ok: true, rows })
+    } catch (err) {
+      // SQLite may have already unwound the transaction itself, in which
+      // case ROLLBACK throws — the original error is the one worth keeping.
+      try {
+        db.exec('ROLLBACK')
+      } catch {
+        /* no active transaction */
+      }
+      throw err
+    }
   } catch (err) {
     ctx.postMessage({
-      id,
+      id: request.id,
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     })

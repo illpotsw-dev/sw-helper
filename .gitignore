@@ -1,5 +1,8 @@
 .claude/settings.local.json
 
+# Local-only working notes, plans, scratch work — never checked in
+.local/
+
 # Logs
 logs
 *.log
