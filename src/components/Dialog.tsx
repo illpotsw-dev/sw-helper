@@ -9,11 +9,14 @@ export function Dialog({
   title,
   description,
   onClose,
+  wide,
   children,
 }: {
   title: string
   description?: string
   onClose: () => void
+  /** For a dialog carrying a grid rather than a form — the battle preview. */
+  wide?: boolean
   children: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -28,7 +31,7 @@ export function Dialog({
       ref={ref}
       onClose={onClose}
       onCancel={onClose}
-      className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-slate-200 p-0 text-slate-900 shadow-xl backdrop:bg-slate-900/40"
+      className={`m-auto ${wide ? 'w-[min(48rem,calc(100vw-2rem))]' : 'w-[min(28rem,calc(100vw-2rem))]'} rounded-lg border border-slate-200 p-0 text-slate-900 shadow-xl backdrop:bg-slate-900/40`}
     >
       <div className="border-b border-slate-200 px-4 py-3">
         <h2 className="font-semibold">{title}</h2>

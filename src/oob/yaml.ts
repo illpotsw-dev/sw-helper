@@ -40,6 +40,7 @@ export function parseUnitTypes(text: string): ParsedUnitTypes {
     if (!name) {
       problems.push({
         rule: 'unit-type-missing-name',
+        severity: 'error',
         message: 'A land_units entry has no name.',
       })
       continue
@@ -47,6 +48,7 @@ export function parseUnitTypes(text: string): ParsedUnitTypes {
     if (seen.has(name)) {
       problems.push({
         rule: 'duplicate-unit-type',
+        severity: 'error',
         message: `The catalog defines "${name}" more than once.`,
       })
       continue
@@ -94,6 +96,7 @@ export function parseOob(text: string, designId = 0): ParsedOob {
     if (!key) {
       problems.push({
         rule: 'formation-missing-id',
+        severity: 'error',
         message: `Formation at position ${index + 1} has no id.`,
       })
       return
@@ -101,6 +104,7 @@ export function parseOob(text: string, designId = 0): ParsedOob {
     if (idByKey.has(key)) {
       problems.push({
         rule: 'duplicate-formation-key',
+        severity: 'error',
         message: `More than one formation uses the id "${key}".`,
       })
       return
@@ -123,6 +127,7 @@ export function parseOob(text: string, designId = 0): ParsedOob {
         // is reported rather than silently swallowed.
         problems.push({
           rule: 'unknown-parent-key',
+          severity: 'error',
           message: `"${str(entry.name, key)}" reports to "${parentKey}", which is not a formation in this file.`,
           formationId: id,
         })
@@ -148,6 +153,7 @@ export function parseOob(text: string, designId = 0): ParsedOob {
     if (formationId === undefined) {
       problems.push({
         rule: 'unknown-formation-key',
+        severity: 'error',
         message: `"${str(entry.name, 'A unit')}" is attached to "${formationKey}", which is not a formation in this file.`,
       })
       return

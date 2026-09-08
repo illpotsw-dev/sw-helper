@@ -34,7 +34,7 @@ A unit can attach to a formation at any tier, not just the bottom one — the Ar
 The distinguishing operation. Moving a formation carries its entire subtree with it.
 
 - **Move** a formation to a new parent, or a unit to a new formation.
-- **Bulk move** — select several units and reassign them in one action. Reorganizing is mostly this: shuffling batteries and battalions between brigades.
+- **Bulk move** — select several units and reassign them in one action. Reorganizing is mostly this: shuffling batteries and battalions between brigades. Ticking one unit then shift-clicking another selects everything between them, in the order the rows are on screen — a collapsed formation's units are never swept up unseen. Ctrl/Cmd+A selects every unit on screen and Esc clears the selection, both ignored while a dialog or a text field has the keyboard.
 - **Reorder** siblings, since export order is roster order and players care about it.
 - **Detach to root** — make a formation independent (`parent_id: null`), for garrisons and detached commands split off from the field army.
 
@@ -60,12 +60,13 @@ Checked continuously while editing and enforced at import and promote-to-live:
 - formation ids unique; every `parent_id` resolves; no cycles;
 - a formation's echelon strictly below its parent's (`echelons.yml` `level` ordering);
 - every unit's `unit_type` matches a catalog entry exactly — no normalization, no case-folding, no fuzzy matching;
-- men/guns exclusivity — artillery and support_weapons carry guns and 0 men, all other types the reverse;
-- no unit with zero total strength.
+- men/guns exclusivity — artillery and support_weapons carry guns and 0 men, all other types the reverse.
+
+A unit at zero in both measures is a **paper unit** — on the books with nobody in it — and is legal: it is how a battalion wiped out in battle keeps its designation, equipment and place in the tree, and how a design sketches formations a player means to raise. It is surfaced as a notice on its row, not an error, and does not block promote-to-live. (Recording *both* men and guns remains an error.) See [mvp-battle-losses.md](mvp-battle-losses.md) §2.1.
 
 Multiple roots are legal, not an error — Clan McGreggor's field army and Portree garrison are separate trees.
 
-Violations are surfaced inline on the offending row while editing. A design is allowed to sit in a broken state (you're mid-reorganization); **promote to live is blocked** until it validates.
+Violations are surfaced inline on the offending row while editing. A design is allowed to sit in a broken state (you're mid-reorganization); **promote to live is blocked** until it validates — notices do not block it, only errors.
 
 ## 7. Import
 Accepts pasted `army-oob.yml` text conforming to [the template](../nations/template/army-oob.yml). Paste-based, not file upload, per [mvp.md](mvp.md) §7.

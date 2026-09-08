@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import type { Rollup, Tree, TreeNode } from '../oob/tree.ts'
 import { refKey } from '../oob/dnd.ts'
 import type { DragSubject, DropRef, DropZone } from '../oob/dnd.ts'
+import { isError } from '../oob/types.ts'
 import type { Echelon, Formation, Problem, Unit } from '../oob/types.ts'
 
 const count = (value: number) => value.toLocaleString('en-US')
@@ -117,7 +117,8 @@ export type TreeActions = {
   onMoveUnit: (unit: Unit) => void
   onReorderFormations: (orderedIds: number[], label: string) => void
   onReorderUnits: (orderedIds: number[], label: string) => void
-  onToggleUnitSelected: (unitId: number) => void
+  /** A click on a unit's checkbox. `extend` is a shift-click. */
+  onSelectUnit: (unitId: number, extend: boolean) => void
 }
 
 // Hidden until the row is hovered or focused on pointer devices, always shown
@@ -179,9 +180,14 @@ function Reorder({
 function Problems({ problems }: { problems: Problem[] }) {
   if (!problems.length) return null
   return (
-    <ul className="pb-1 pl-6 text-xs text-red-700">
+    <ul className="pb-1 pl-6 text-xs">
       {problems.map((problem, index) => (
-        <li key={index}>{problem.message}</li>
+        <li
+          key={index}
+          className={isError(problem) ? 'text-red-700' : 'text-slate-500'}
+        >
+          {problem.message}
+        </li>
       ))}
     </ul>
   )
@@ -239,7 +245,18 @@ function UnitRow({
         <input
           type="checkbox"
           checked={selected}
-          onChange={() => actions.onToggleUnitSelected(unit.id)}
+          // The handler is on click rather than change because only a mouse
+          // event carries the shift key. readOnly is what stops React warning
+          // about a checked box with no onChange; the click drives the state.
+          readOnly
+          onClick={(event) => actions.onSelectUnit(unit.id, event.shiftKey)}
+          // Shift-clicking would otherwise drag a text selection across every
+          // row in between. Cancelling mousedown stops that but not the click,
+          // so the box still ticks.
+          onMouseDown={(event) => {
+            if (event.shiftKey) event.preventDefault()
+          }}
+          title="Shift-click to select a range"
           aria-label={`Select ${unit.designation}`}
           // Kept out of the way until a selection is under way, then shown on
           // every row so the set being acted on is obvious.
@@ -251,9 +268,18 @@ function UnitRow({
             <span className="text-slate-400"> · {unit.equipment}</span>
           )}
         </span>
-        <span className="shrink-0 tabular-nums text-slate-500">
-          {strength(unit)}
-        </span>
+        {unit.men === 0 && unit.weapons === 0 ? (
+          <span
+            title="On the books with nobody in it"
+            className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500"
+          >
+            paper
+          </span>
+        ) : (
+          <span className="shrink-0 tabular-nums text-slate-500">
+            {strength(unit)}
+          </span>
+        )}
         <span className={actionGroup}>
           <Reorder
             siblingIds={siblingIds}
@@ -450,6 +476,8 @@ export function OobTree({
   problems,
   actions,
   selectedUnitIds,
+  collapsed,
+  onToggleCollapsed,
   dnd,
 }: {
   tree: Tree
@@ -457,17 +485,14 @@ export function OobTree({
   problems: readonly Problem[]
   actions: TreeActions
   selectedUnitIds: ReadonlySet<number>
+  /**
+   * Which formations are folded shut. Owned by the designer, because what
+   * is on screen is what the selection shortcuts act on.
+   */
+  collapsed: ReadonlySet<number>
+  onToggleCollapsed: (formationId: number) => void
   dnd: DndBindings
 }) {
-  const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set())
-
-  const toggle = (id: number) =>
-    setCollapsed((current) => {
-      const next = new Set(current)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
-
   const problemsFor = (key: { formationId?: number; unitId?: number }) =>
     problems.filter((problem) =>
       key.formationId !== undefined
@@ -491,7 +516,7 @@ export function OobTree({
               depth={0}
               echelons={echelons}
               collapsed={collapsed}
-              onToggle={toggle}
+              onToggle={onToggleCollapsed}
               actions={actions}
               problemsFor={problemsFor}
               siblingIds={rootIds}

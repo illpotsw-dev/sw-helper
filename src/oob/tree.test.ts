@@ -1,6 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { allNodes, buildTree, flatten } from './tree.ts'
+import {
+  allNodes,
+  buildTree,
+  flatten,
+  unitIdsUnder,
+  visibleUnitIds,
+} from './tree.ts'
 import type { Formation, Unit, UnitType } from './types.ts'
 import { mcgreggor, round } from './fixture.test-helper.ts'
 
@@ -68,11 +74,52 @@ test('a total equals own plus every child total', () => {
   }
 })
 
-test('rolls up upkeep from the catalog', () => {
-  const army = byName('McGreggor Army')
-  // 45 levy/highlander/cavalry/guard battalions plus 9 batteries.
-  assert.equal(round(army.total.upkeepPerTurn), 68.5)
-  assert.ok(byName('Portree Garrison').total.upkeepPerTurn > 0)
+test('rolls up upkeep from the catalog, scaled by strength', () => {
+  // 45 levy/highlander/cavalry/guard battalions plus 9 batteries. Flat per
+  // unit this would be 68.5; 36 of the 58 units are below establishment.
+  assert.equal(round(byName('McGreggor Army').total.upkeepPerTurn), 65.3)
+  assert.equal(round(byName('Portree Garrison').total.upkeepPerTurn), 6.01)
+})
+
+const upkeepOfOne = (men: number, type: UnitType): number => {
+  const unit: Unit = {
+    id: 1,
+    formationId: 1,
+    unitType: type.name,
+    designation: 'I Bn',
+    men,
+    weapons: 0,
+    equipment: '',
+    sortOrder: 0,
+  }
+  return buildTree([formation(1, null)], [unit], [type]).roots[0].total
+    .upkeepPerTurn
+}
+
+const levies: UnitType = {
+  name: 'Clan Levies',
+  category: 'infantry',
+  description: '',
+  recruitCost: 20,
+  upkeepPerTurn: 0.5,
+  buildTimeTurns: 1,
+  men: 1000,
+  weapons: 0,
+}
+
+test('a unit at half establishment costs half its type', () => {
+  assert.equal(upkeepOfOne(500, levies), 0.25)
+  assert.equal(upkeepOfOne(1000, levies), 0.5)
+})
+
+test('an over-strength unit costs more than a full one, uncapped', () => {
+  // Eight of McGreggor's units field more than their type's establishment;
+  // clamping the ratio at 1 would under-report what they cost.
+  assert.equal(upkeepOfOne(1200, levies), 0.6)
+})
+
+test('a paper unit costs nothing', () => {
+  assert.equal(upkeepOfOne(0, levies), 0)
 })
 
 test('flatten emits units under their own formation', () => {
@@ -142,4 +189,30 @@ test('an unresolved unit type contributes no upkeep', () => {
   const built = buildTree([formation(1, null)], [unit], [type])
   assert.equal(built.roots[0].total.men, 500)
   assert.equal(built.roots[0].total.upkeepPerTurn, 0)
+})
+
+test('visible unit ids follow the rendered row order', () => {
+  const rows = flatten(tree)
+    .filter((row) => row.kind === 'unit')
+    .map((row) => row.unit.id)
+  assert.deepEqual(visibleUnitIds(tree, new Set()), rows)
+})
+
+test('a collapsed formation hides its own units and its subtree', () => {
+  const division = byName('I. Infantry Division — The Stone Line')
+  const hidden = new Set(unitIdsUnder(division))
+  const visible = visibleUnitIds(tree, new Set([division.formation.id]))
+
+  assert.equal(hidden.size, 14)
+  assert.ok(!visible.some((id) => hidden.has(id)))
+  assert.equal(visible.length, units.length - hidden.size)
+})
+
+test('collapsing the army leaves only the garrison visible', () => {
+  const army = byName('McGreggor Army')
+  const garrison = byName('Portree Garrison')
+  assert.deepEqual(
+    visibleUnitIds(tree, new Set([army.formation.id])),
+    unitIdsUnder(garrison),
+  )
 })

@@ -127,6 +127,24 @@ export const moveUnitsAndOrderStatements = (input: {
   ...resequenceUnitStatements(input.orderedUnitIds),
 ]
 
+/**
+ * Writes a battle's outcome onto the units that fought. One UPDATE per
+ * changed unit, run in a single transaction, so the whole battle lands as one
+ * undo entry and a partial write is impossible.
+ *
+ * Nothing is deleted: a unit taken to zero stays in the tree as a paper unit,
+ * keeping its designation, equipment and place. Removing it is a separate and
+ * separately-undoable decision, not one the calculator makes on the player's
+ * behalf.
+ */
+export const applyStrengthStatements = (
+  changes: readonly { unitId: number; men: number; weapons: number }[],
+): Statement[] =>
+  changes.map((change) => ({
+    sql: 'UPDATE oob_units SET men = ?, weapons = ? WHERE id = ?',
+    params: [change.men, change.weapons, change.unitId],
+  }))
+
 export type DeleteMode = 'promote' | 'subtree'
 
 /**

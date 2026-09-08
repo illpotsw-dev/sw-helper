@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { canReparent, validate } from './validate.ts'
+import { canReparent, errorsOnly, validate } from './validate.ts'
 import { DEFAULT_ECHELONS } from './types.ts'
 import type { Formation, Unit, UnitType } from './types.ts'
 import { mcgreggor } from './fixture.test-helper.ts'
@@ -159,14 +159,16 @@ test('does not case-fold or trim a unit type', () => {
   }
 })
 
-test('flags a unit with no strength', () => {
-  const problems = rules({
+test('notes a unit with no strength rather than failing it', () => {
+  const input = {
     formations: [formation()],
     units: [unit({ men: 0, weapons: 0 })],
     unitTypes,
     echelons,
-  })
-  assert.deepEqual(problems, ['strength-exclusive'])
+  }
+  assert.deepEqual(rules(input), ['paper-unit'])
+  // A paper unit must not block promote-to-live: it is a notice, not an error.
+  assert.deepEqual(errorsOnly(validate(input)), [])
 })
 
 test('flags a unit carrying both men and guns', () => {

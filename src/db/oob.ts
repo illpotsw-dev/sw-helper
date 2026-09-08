@@ -1,5 +1,6 @@
 import { query, transaction } from './client.ts'
 import {
+  applyStrengthStatements,
   deleteFormationStatements,
   designStatements,
   insertFormation,
@@ -353,6 +354,18 @@ export async function applyDrop(
     moveUnitsAndOrderStatements(plan),
     `Move ${count === 1 ? 'unit' : `${count} units`} to ${plan.destination}`,
   )
+}
+
+/**
+ * Applies a battle's losses or reinforcements. The label carries the optional
+ * battle name so history reads "Undo: Losses — Battle of Portree" rather than
+ * "Undo: Edit unit".
+ */
+export async function applyStrengthChanges(input: {
+  changes: readonly { unitId: number; men: number; weapons: number }[]
+  label: string
+}): Promise<void> {
+  await transaction(applyStrengthStatements(input.changes), input.label)
 }
 
 export async function reorderFormations(

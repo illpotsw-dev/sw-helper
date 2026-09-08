@@ -85,10 +85,12 @@ export const SCHEMA_STATEMENTS = [
     weapons INTEGER NOT NULL DEFAULT 0,
     equipment TEXT NOT NULL DEFAULT '',
     sort_order INTEGER NOT NULL DEFAULT 0,
-    -- Exactly one of the two carries the unit's strength, and it must be
-    -- non-zero. Which one is correct for this unit_type is checked in the
-    -- app, since a CHECK cannot read the referenced row.
-    CHECK ((men = 0) <> (weapons = 0))
+    -- At most one of the two carries the unit's strength. Both at zero is a
+    -- paper unit: on the books with nobody in it, which is how a wiped-out
+    -- battalion keeps its designation and its place in the tree. Which
+    -- measure is correct for this unit_type is checked in the app, since a
+    -- CHECK cannot read the referenced row.
+    CHECK (men >= 0 AND weapons >= 0 AND (men = 0 OR weapons = 0))
   )`,
   `CREATE INDEX IF NOT EXISTS oob_units_formation
     ON oob_units (formation_id)`,

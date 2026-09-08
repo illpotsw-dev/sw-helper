@@ -43,11 +43,14 @@ export function UnitForm({
   )
 
   const parsed = Number(strength)
+  // Zero is allowed — a wiped-out battalion, or one sketched in a design
+  // before it is raised, sits on the books at nothing. An empty box is not:
+  // that is an unanswered question rather than an answer of none.
   const valid =
     designation.trim() !== '' &&
     unitType !== '' &&
-    Number.isFinite(parsed) &&
-    parsed > 0
+    strength !== '' &&
+    Number.isFinite(parsed)
 
   return (
     <Dialog
@@ -107,9 +110,11 @@ export function UnitForm({
           hint={
             !type
               ? 'Choose a unit type first — it decides whether this counts men or guns.'
-              : guns
-                ? 'Batteries are counted in guns and carry no headcount.'
-                : undefined
+              : parsed === 0 && strength !== ''
+                ? 'A paper unit: on the books with nobody in it.'
+                : guns
+                  ? 'Batteries are counted in guns and carry no headcount.'
+                  : undefined
           }
         >
           <input

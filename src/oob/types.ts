@@ -94,10 +94,21 @@ export type Unit = {
   sortOrder: number
 }
 
+/**
+ * An error is something the design must not be promoted to live with; a
+ * notice is worth surfacing on the row but blocks nothing. A paper unit is
+ * the reason the distinction exists — see mvp-battle-losses.md §2.1.
+ */
+export type Severity = 'error' | 'notice'
+
 export type Problem = {
   /** Stable identifier for the rule that failed, for testing and filtering. */
   rule: string
+  severity: Severity
   message: string
   formationId?: number
   unitId?: number
 }
+
+export const isError = (problem: Problem): boolean =>
+  problem.severity === 'error'

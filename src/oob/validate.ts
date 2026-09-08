@@ -1,4 +1,4 @@
-import { isGunCounted } from './types.ts'
+import { isError, isGunCounted } from './types.ts'
 import type { Echelon, Formation, Problem, Unit, UnitType } from './types.ts'
 
 export type ValidateInput = {
@@ -25,6 +25,7 @@ export function validate(input: ValidateInput): Problem[] {
     if (byId.has(formation.id)) {
       problems.push({
         rule: 'duplicate-formation-id',
+        severity: 'error',
         message: `More than one formation uses id ${formation.id}.`,
         formationId: formation.id,
       })
@@ -37,6 +38,7 @@ export function validate(input: ValidateInput): Problem[] {
     if (!levelOf.has(formation.echelon)) {
       problems.push({
         rule: 'unknown-echelon',
+        severity: 'error',
         message: `"${formation.name}" uses echelon ${formation.echelon}, which is not a known tier.`,
         formationId: formation.id,
       })
@@ -48,6 +50,7 @@ export function validate(input: ValidateInput): Problem[] {
     if (!parent) {
       problems.push({
         rule: 'unknown-parent',
+        severity: 'error',
         message: `"${formation.name}" reports to formation ${formation.parentId}, which does not exist.`,
         formationId: formation.id,
       })
@@ -59,6 +62,7 @@ export function validate(input: ValidateInput): Problem[] {
     if (level !== undefined && parentLevel !== undefined && level >= parentLevel) {
       problems.push({
         rule: 'echelon-order',
+        severity: 'error',
         message: `"${formation.name}" (${formation.echelon}) must sit below its parent "${parent.name}" (${parent.echelon}).`,
         formationId: formation.id,
       })
@@ -72,6 +76,7 @@ export function validate(input: ValidateInput): Problem[] {
       if (seen.has(current)) {
         problems.push({
           rule: 'cycle',
+          severity: 'error',
           message: `"${formation.name}" is its own ancestor.`,
           formationId: formation.id,
         })
@@ -86,6 +91,7 @@ export function validate(input: ValidateInput): Problem[] {
     if (!byId.has(unit.formationId)) {
       problems.push({
         rule: 'unknown-formation',
+        severity: 'error',
         message: `"${unit.designation}" is attached to formation ${unit.formationId}, which does not exist.`,
         unitId: unit.id,
       })
@@ -97,6 +103,7 @@ export function validate(input: ValidateInput): Problem[] {
       // See mvp-oob-designer.md §7 for why.
       problems.push({
         rule: 'unknown-unit-type',
+        severity: 'error',
         message: `"${unit.designation}" has unit type "${unit.unitType}", which is not in the catalog.`,
         unitId: unit.id,
       })
@@ -104,12 +111,21 @@ export function validate(input: ValidateInput): Problem[] {
 
     const hasMen = unit.men !== 0
     const hasWeapons = unit.weapons !== 0
-    if (hasMen === hasWeapons) {
+    if (hasMen && hasWeapons) {
       problems.push({
         rule: 'strength-exclusive',
-        message: hasMen
-          ? `"${unit.designation}" records both men and guns; a unit carries one or the other.`
-          : `"${unit.designation}" has no strength recorded.`,
+        severity: 'error',
+        message: `"${unit.designation}" records both men and guns; a unit carries one or the other.`,
+        unitId: unit.id,
+      })
+    } else if (!hasMen && !hasWeapons) {
+      // Not an error: a unit wiped out in battle, or one sketched in a design
+      // before it is raised, sits at zero and keeps its designation,
+      // equipment and place in the tree. See mvp-battle-losses.md §2.1.
+      problems.push({
+        rule: 'paper-unit',
+        severity: 'notice',
+        message: `"${unit.designation}" is a paper unit: on the books with nobody in it.`,
         unitId: unit.id,
       })
     } else if (type) {
@@ -117,12 +133,14 @@ export function validate(input: ValidateInput): Problem[] {
       if (shouldUseGuns && hasMen) {
         problems.push({
           rule: 'strength-wrong-measure',
+          severity: 'error',
           message: `"${unit.designation}" is a ${type.category} unit, which is counted in guns, but records men.`,
           unitId: unit.id,
         })
       } else if (!shouldUseGuns && hasWeapons) {
         problems.push({
           rule: 'strength-wrong-measure',
+          severity: 'error',
           message: `"${unit.designation}" is a ${type.category} unit, which is counted in men, but records guns.`,
           unitId: unit.id,
         })
@@ -132,6 +150,10 @@ export function validate(input: ValidateInput): Problem[] {
 
   return problems
 }
+
+/** Only the problems that make a design invalid, leaving notices aside. */
+export const errorsOnly = (problems: readonly Problem[]): Problem[] =>
+  problems.filter(isError)
 
 /** Whether a formation may be moved under a given parent. */
 export function canReparent(

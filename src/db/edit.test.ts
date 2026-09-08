@@ -243,16 +243,24 @@ test('a promote is undoable, putting the children back where they were', () => {
   )
 })
 
-test('a unit cannot be edited into an invalid strength', () => {
+test('a unit cannot record both men and guns', () => {
   const { exec } = open()
-  assert.throws(
-    () => exec('UPDATE oob_units SET men = 0, weapons = 0 WHERE id = 1'),
-    /CHECK/i,
-  )
   assert.throws(
     () => exec('UPDATE oob_units SET weapons = 12 WHERE id = 1'),
     /CHECK/i,
   )
+  assert.throws(
+    () => exec('UPDATE oob_units SET men = -5 WHERE id = 1'),
+    /CHECK/i,
+  )
+})
+
+test('a wiped-out unit is stored at zero rather than deleted', () => {
+  const { exec } = open()
+  exec('UPDATE oob_units SET men = 0 WHERE id = 1')
+  const [row] = exec('SELECT men, designation FROM oob_units WHERE id = 1')
+  assert.equal(Number(row.men), 0)
+  assert.ok(row.designation)
 })
 
 test('a unit cannot be edited onto a type outside the catalog', () => {

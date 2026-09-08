@@ -1,5 +1,16 @@
 import type { Formation, Unit, UnitType } from './types.ts'
 
+/**
+ * A type's paper strength, in whichever measure it is counted. The unit_types
+ * CHECK guarantees exactly one of the two is non-zero, so this is never 0.
+ */
+export const establishmentOf = (type: UnitType): number =>
+  type.men || type.weapons
+
+/** How much of its type a unit currently fields. 1 at establishment. */
+export const strengthRatio = (unit: Unit, type: UnitType): number =>
+  (unit.men + unit.weapons) / establishmentOf(type)
+
 export type Rollup = {
   men: number
   weapons: number
@@ -55,7 +66,7 @@ export function buildTree(
   units: readonly Unit[],
   unitTypes: readonly UnitType[],
 ): Tree {
-  const upkeepOf = new Map(unitTypes.map((t) => [t.name, t.upkeepPerTurn]))
+  const typeOf = new Map(unitTypes.map((t) => [t.name, t]))
   const known = new Set(formations.map((f) => f.id))
 
   const childrenOf = new Map<number, Formation[]>()
@@ -91,7 +102,13 @@ export function buildTree(
       own.weapons += unit.weapons
       // An unresolved unit type contributes no upkeep. validate() reports
       // it; rolling up a guessed cost would be worse than rolling up none.
-      own.upkeepPerTurn += upkeepOf.get(unit.unitType) ?? 0
+      //
+      // Upkeep scales with how much of its establishment the unit actually
+      // fields, so a battalion at 140 of 1,000 men does not cost what a full
+      // one does and a paper unit costs nothing. Deliberately not clamped at
+      // 1: units over establishment cost more, which is the honest figure.
+      const type = typeOf.get(unit.unitType)
+      if (type) own.upkeepPerTurn += type.upkeepPerTurn * strengthRatio(unit, type)
       own.unitCount += 1
     }
 
@@ -138,6 +155,17 @@ export function flatten(tree: Tree): FlatRow[] {
   return rows
 }
 
+/** Every unit under a formation, its own and its descendants'. */
+export function unitIdsUnder(node: TreeNode): number[] {
+  const ids: number[] = []
+  const walk = (current: TreeNode): void => {
+    for (const unit of current.units) ids.push(unit.id)
+    current.children.forEach(walk)
+  }
+  walk(node)
+  return ids
+}
+
 /** Every formation in the tree, roots first, parents before children. */
 export function allNodes(tree: Tree): TreeNode[] {
   const nodes: TreeNode[] = []
@@ -147,4 +175,24 @@ export function allNodes(tree: Tree): TreeNode[] {
   }
   tree.roots.forEach(walk)
   return nodes
+}
+
+/**
+ * Unit ids in the order their rows appear on screen, skipping anything inside
+ * a collapsed formation. This is the order a shift-click range runs through,
+ * so a collapsed division's units can never be caught in one unseen.
+ */
+export function visibleUnitIds(
+  tree: Tree,
+  collapsed: ReadonlySet<number>,
+): number[] {
+  const ids: number[] = []
+  const walk = (node: TreeNode): void => {
+    // A collapsed formation hides its own units and its children alike.
+    if (collapsed.has(node.formation.id)) return
+    for (const unit of node.units) ids.push(unit.id)
+    node.children.forEach(walk)
+  }
+  tree.roots.forEach(walk)
+  return ids
 }

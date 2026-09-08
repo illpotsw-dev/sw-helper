@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { OobTree, type DndBindings, type TreeActions } from './OobTree.tsx'
 import { FormationForm } from './FormationForm.tsx'
 import { UnitForm, type UnitValues } from './UnitForm.tsx'
 import { DeleteFormationPrompt } from './DeleteFormationPrompt.tsx'
+import { BattleDialog, type StrengthChange } from './BattleDialog.tsx'
 import { buttonStyles } from './styles.ts'
 import {
   MoveDialog,
@@ -13,6 +14,7 @@ import {
   addFormation,
   addUnit,
   applyDrop,
+  applyStrengthChanges,
   deleteFormation,
   deleteUnit,
   moveFormation,
@@ -24,10 +26,22 @@ import {
 } from '../db/oob.ts'
 import type { DeleteMode } from '../db/statements.ts'
 import type { Loaded } from '../oob/load.ts'
+import { visibleUnitIds } from '../oob/tree.ts'
 import type { TreeNode } from '../oob/tree.ts'
 import { planDrop, refKey } from '../oob/dnd.ts'
+import { emptySelection, selectAll, selectUnit } from '../oob/selection.ts'
 import type { DragSubject, DropPlan, DropZone } from '../oob/dnd.ts'
 import type { EchelonSymbol, Formation, Unit } from '../oob/types.ts'
+
+/** Whether a keystroke belongs to a text field rather than to the tree. */
+function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  if (target instanceof HTMLInputElement) {
+    return target.type !== 'checkbox' && target.type !== 'radio'
+  }
+  return target.tagName === 'TEXTAREA' || target.tagName === 'SELECT'
+}
 
 type Editing =
   | { kind: 'add-formation'; parent: Formation | null }
@@ -36,6 +50,7 @@ type Editing =
   | { kind: 'add-unit'; formation: Formation }
   | { kind: 'edit-unit'; unit: Unit }
   | { kind: 'move'; subject: MoveSubject }
+  | { kind: 'battle' }
   | null
 
 export function OobDesigner({
@@ -47,7 +62,11 @@ export function OobDesigner({
 }) {
   const [editing, setEditing] = useState<Editing>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<ReadonlySet<number>>(new Set())
+  const [selected, setSelected] = useState(emptySelection)
+  // Which formations are folded shut lives here rather than in the tree:
+  // both the shortcuts below and a shift-click range act on the rows that
+  // are actually on screen.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set())
   const [dragging, setDragging] = useState<DragSubject | null>(null)
   const [over, setOver] = useState<{
     key: string
@@ -78,6 +97,20 @@ export function OobDesigner({
     }
   }
 
+  const toggleCollapsed = (formationId: number) =>
+    setCollapsed((current) => {
+      const next = new Set(current)
+      if (!next.delete(formationId)) next.add(formationId)
+      return next
+    })
+
+  // Memoised so the shortcut listener below is not torn down and rebuilt on
+  // every render — during a drag that is several a second.
+  const visibleUnits = useMemo(
+    () => visibleUnitIds(data.tree, collapsed),
+    [data.tree, collapsed],
+  )
+
   const actions: TreeActions = {
     onAddFormation: (parent) => setEditing({ kind: 'add-formation', parent }),
     onEditFormation: (formation) =>
@@ -103,13 +136,33 @@ export function OobDesigner({
       void apply(() => reorderFormations(orderedIds, label)),
     onReorderUnits: (orderedIds, label) =>
       void apply(() => reorderUnits(orderedIds, label)),
-    onToggleUnitSelected: (unitId) =>
-      setSelected((current) => {
-        const next = new Set(current)
-        if (!next.delete(unitId)) next.add(unitId)
-        return next
-      }),
+    onSelectUnit: (unitId, extend) =>
+      setSelected((current) => selectUnit(current, unitId, extend, visibleUnits)),
   }
+
+  // Window-level, because selecting is not something you do from inside a
+  // focus container: by the time you want the lot, or want rid of it, the
+  // keyboard is wherever the last click left it.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      // An open dialog owns the keyboard, Escape included: that is how it
+      // closes.
+      if (editing || isTyping(event.target)) return
+
+      if (event.key === 'Escape') {
+        setSelected((current) => (current.ids.size ? emptySelection() : current))
+        return
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+        if (!visibleUnits.length) return
+        // Otherwise the browser selects the text of the whole page instead.
+        event.preventDefault()
+        setSelected(selectAll(visibleUnits))
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [editing, visibleUnits])
 
   const endDrag = () => {
     draggingRef.current = null
@@ -163,7 +216,7 @@ export function OobDesigner({
           : 'units'
       void apply(async () => {
         await applyDrop(plan, name)
-        setSelected(new Set())
+        setSelected(emptySelection())
       })
     },
     onDragEnd: endDrag,
@@ -193,7 +246,7 @@ export function OobDesigner({
         targetFormationId: target.parentId as number,
         destination: target.name,
       })
-      setSelected(new Set())
+      setSelected(emptySelection())
     })
   }
 
@@ -217,6 +270,12 @@ export function OobDesigner({
     } else if (editing?.kind === 'add-unit') {
       void apply(() => addUnit({ formationId: editing.formation.id, ...values }))
     }
+  }
+
+  // The whole battle is one transaction and so one undo entry, labelled from
+  // the optional battle name: "Undo: Losses — Battle of Portree".
+  const applyBattle = (changes: StrengthChange[], label: string) => {
+    void apply(() => applyStrengthChanges({ changes, label }))
   }
 
   const confirmDelete = (mode: DeleteMode) => {
@@ -247,17 +306,28 @@ export function OobDesigner({
         echelons={data.echelons}
         problems={data.problems}
         actions={actions}
-        selectedUnitIds={selected}
+        selectedUnitIds={selected.ids}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
         dnd={dnd}
       />
 
-      <button
-        type="button"
-        className={buttonStyles.quiet}
-        onClick={() => setEditing({ kind: 'add-formation', parent: null })}
-      >
-        Add independent formation
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={buttonStyles.quiet}
+          onClick={() => setEditing({ kind: 'add-formation', parent: null })}
+        >
+          Add independent formation
+        </button>
+        <button
+          type="button"
+          className={buttonStyles.quiet}
+          onClick={() => setEditing({ kind: 'battle' })}
+        >
+          Battle losses…
+        </button>
+      </div>
 
       {dragging && over && !over.ok && over.reason && (
         <p className="sticky bottom-3 rounded-lg border border-red-300 bg-red-50/95 p-2 text-sm text-red-800 shadow-lg backdrop-blur">
@@ -265,16 +335,20 @@ export function OobDesigner({
         </p>
       )}
 
-      {selected.size > 0 && (
+      {selected.ids.size > 0 && (
         <div className="sticky bottom-3 flex flex-wrap items-center gap-3 rounded-lg border border-slate-300 bg-white/95 p-3 shadow-lg backdrop-blur">
           <span className="text-sm font-medium">
-            {selected.size} unit{selected.size === 1 ? '' : 's'} selected
+            {selected.ids.size} unit{selected.ids.size === 1 ? '' : 's'} selected
+          </span>
+          <span className="text-xs text-slate-500">
+            Shift-click for a range · Ctrl+A for all · Esc to clear
           </span>
           <div className="ml-auto flex gap-2">
             <button
               type="button"
               className={buttonStyles.quiet}
-              onClick={() => setSelected(new Set())}
+              title="Esc"
+              onClick={() => setSelected(emptySelection())}
             >
               Clear
             </button>
@@ -286,7 +360,7 @@ export function OobDesigner({
                   kind: 'move',
                   subject: {
                     kind: 'units',
-                    unitIds: [...selected],
+                    unitIds: [...selected.ids],
                     // A mixed selection has no single origin, so nothing is
                     // ruled out as "already here".
                     fromFormationId: -1,
@@ -329,6 +403,15 @@ export function OobDesigner({
         <DeleteFormationPrompt
           node={editing.node}
           onConfirm={confirmDelete}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {editing?.kind === 'battle' && (
+        <BattleDialog
+          tree={data.tree}
+          unitTypes={data.unitTypes}
+          onApply={applyBattle}
           onClose={() => setEditing(null)}
         />
       )}
