@@ -98,6 +98,35 @@ export const resequenceUnitStatements = (
     params: [index, id],
   }))
 
+/**
+ * Reparents a formation and fixes the resulting sibling order in one go. A drag
+ * usually does both at once — dropping between two rows changes who the parent
+ * is and where in the list it lands.
+ */
+export const reparentAndOrderStatements = (input: {
+  formationId: number
+  newParentId: number | null
+  orderedSiblingIds: readonly number[]
+}): Statement[] => [
+  {
+    sql: 'UPDATE oob_formations SET parent_id = ? WHERE id = ?',
+    params: [input.newParentId, input.formationId],
+  },
+  ...resequenceFormationStatements(input.orderedSiblingIds),
+]
+
+export const moveUnitsAndOrderStatements = (input: {
+  unitIds: readonly number[]
+  targetFormationId: number
+  orderedUnitIds: readonly number[]
+}): Statement[] => [
+  ...input.unitIds.map((id) => ({
+    sql: 'UPDATE oob_units SET formation_id = ? WHERE id = ?',
+    params: [input.targetFormationId, id],
+  })),
+  ...resequenceUnitStatements(input.orderedUnitIds),
+]
+
 export type DeleteMode = 'promote' | 'subtree'
 
 /**

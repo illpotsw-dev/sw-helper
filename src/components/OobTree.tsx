@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { Rollup, Tree, TreeNode } from '../oob/tree.ts'
+import { refKey } from '../oob/dnd.ts'
+import type { DragSubject, DropRef, DropZone } from '../oob/dnd.ts'
 import type { Echelon, Formation, Problem, Unit } from '../oob/types.ts'
 
 const count = (value: number) => value.toLocaleString('en-US')
@@ -27,6 +29,81 @@ function reordered(
   const next = [...ids]
   ;[next[index], next[target]] = [next[target], next[index]]
   return next
+}
+
+export type DndBindings = {
+  dragging: DragSubject | null
+  /** Ref-backed, so it is accurate even before a re-render has committed. */
+  isDragging: () => boolean
+  /** The row currently under the pointer, and whether dropping there is legal. */
+  over: { key: string; zone: DropZone; ok: boolean } | null
+  onDragStart: (subject: DragSubject) => void
+  onDragOver: (ref: DropRef, zone: DropZone) => void
+  onDrop: () => void
+  onDragEnd: () => void
+}
+
+/**
+ * Splits a row vertically. The middle of a formation row nests inside it; the
+ * edges place the dragged row either side of it. Unit rows have no inside, so
+ * they split in half.
+ */
+function zoneFor(event: React.DragEvent, allowInside: boolean): DropZone {
+  const rect = event.currentTarget.getBoundingClientRect()
+  const position = (event.clientY - rect.top) / (rect.height || 1)
+  if (!allowInside) return position < 0.5 ? 'before' : 'after'
+  if (position < 0.25) return 'before'
+  if (position > 0.75) return 'after'
+  return 'inside'
+}
+
+// Written out in full rather than interpolated: Tailwind generates CSS only for
+// class names it can find literally in the source.
+const DROP_STYLES = {
+  'inside-ok': 'ring-2 ring-inset ring-sky-400 bg-sky-50',
+  'inside-no': 'ring-2 ring-inset ring-red-400 bg-red-50',
+  'before-ok': 'border-t-2 border-sky-500',
+  'before-no': 'border-t-2 border-red-500',
+  'after-ok': 'border-b-2 border-sky-500',
+  'after-no': 'border-b-2 border-red-500',
+}
+
+function dropClasses(dnd: DndBindings, ref: DropRef): string {
+  if (!dnd.over || dnd.over.key !== refKey(ref)) return ''
+  const key = `${dnd.over.zone}-${dnd.over.ok ? 'ok' : 'no'}`
+  return DROP_STYLES[key as keyof typeof DROP_STYLES] ?? ''
+}
+
+function dragProps(
+  dnd: DndBindings,
+  subject: DragSubject,
+  ref: DropRef,
+  allowInside: boolean,
+) {
+  return {
+    draggable: true,
+    onDragStart: (event: React.DragEvent) => {
+      // Firefox refuses to start a drag unless something is on the transfer.
+      event.dataTransfer.setData('text/plain', refKey(ref))
+      event.dataTransfer.effectAllowed = 'move'
+      dnd.onDragStart(subject)
+    },
+    onDragOver: (event: React.DragEvent) => {
+      if (!dnd.isDragging()) return
+      // Without preventDefault the browser treats the row as un-droppable.
+      event.preventDefault()
+      const zone = zoneFor(event, allowInside)
+      event.dataTransfer.dropEffect =
+        dnd.over && dnd.over.key === refKey(ref) && !dnd.over.ok ? 'none' : 'move'
+      dnd.onDragOver(ref, zone)
+    },
+    onDrop: (event: React.DragEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      dnd.onDrop()
+    },
+    onDragEnd: () => dnd.onDragEnd(),
+  }
 }
 
 export type TreeActions = {
@@ -137,6 +214,8 @@ function UnitRow({
   index,
   selected,
   selecting,
+  dnd,
+  dragSubject,
 }: {
   unit: Unit
   depth: number
@@ -146,11 +225,15 @@ function UnitRow({
   index: number
   selected: boolean
   selecting: boolean
+  dnd: DndBindings
+  dragSubject: DragSubject
 }) {
+  const ref: DropRef = { kind: 'unit', id: unit.id }
   return (
     <li className="border-l border-slate-200">
       <div
-        className={`${rowLayout} py-1 text-sm hover:bg-slate-50 ${selected ? 'bg-sky-50' : ''}`}
+        {...dragProps(dnd, dragSubject, ref, false)}
+        className={`${rowLayout} py-1 text-sm hover:bg-slate-50 ${selected ? 'bg-sky-50' : ''} ${dropClasses(dnd, ref)}`}
         style={{ paddingLeft: indent(depth) }}
       >
         <input
@@ -221,6 +304,7 @@ function FormationNode({
   index,
   selectedUnitIds,
   selecting,
+  dnd,
 }: {
   node: TreeNode
   depth: number
@@ -233,16 +317,19 @@ function FormationNode({
   index: number
   selectedUnitIds: ReadonlySet<number>
   selecting: boolean
+  dnd: DndBindings
 }) {
   const isCollapsed = collapsed.has(node.formation.id)
   const childCount = node.children.length + node.units.length
   const unitIds = node.units.map((u) => u.id)
   const childIds = node.children.map((c) => c.formation.id)
+  const ref: DropRef = { kind: 'formation', id: node.formation.id }
 
   return (
     <li className="border-l border-slate-200 first:border-l-0">
       <div
-        className={`${rowLayout} py-1.5 hover:bg-slate-50`}
+        {...dragProps(dnd, { kind: 'formation', id: node.formation.id }, ref, true)}
+        className={`${rowLayout} py-1.5 hover:bg-slate-50 ${dropClasses(dnd, ref)}`}
         style={{ paddingLeft: indent(depth) }}
       >
         <button
@@ -326,6 +413,12 @@ function FormationNode({
               index={unitIndex}
               selected={selectedUnitIds.has(unit.id)}
               selecting={selecting}
+              dnd={dnd}
+              dragSubject={
+                selectedUnitIds.has(unit.id) && selectedUnitIds.size > 1
+                  ? { kind: 'units', ids: [...selectedUnitIds] }
+                  : { kind: 'units', ids: [unit.id] }
+              }
             />
           ))}
           {node.children.map((child, childIndex) => (
@@ -342,6 +435,7 @@ function FormationNode({
               index={childIndex}
               selectedUnitIds={selectedUnitIds}
               selecting={selecting}
+              dnd={dnd}
             />
           ))}
         </ul>
@@ -356,12 +450,14 @@ export function OobTree({
   problems,
   actions,
   selectedUnitIds,
+  dnd,
 }: {
   tree: Tree
   echelons: readonly Echelon[]
   problems: readonly Problem[]
   actions: TreeActions
   selectedUnitIds: ReadonlySet<number>
+  dnd: DndBindings
 }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set())
 
@@ -402,6 +498,7 @@ export function OobTree({
               index={index}
               selectedUnitIds={selectedUnitIds}
               selecting={selecting}
+              dnd={dnd}
             />
           </ul>
         </section>

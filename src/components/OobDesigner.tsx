@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { OobTree, type TreeActions } from './OobTree.tsx'
+import { useRef, useState } from 'react'
+import { OobTree, type DndBindings, type TreeActions } from './OobTree.tsx'
 import { FormationForm } from './FormationForm.tsx'
 import { UnitForm, type UnitValues } from './UnitForm.tsx'
 import { DeleteFormationPrompt } from './DeleteFormationPrompt.tsx'
@@ -12,6 +12,7 @@ import {
 import {
   addFormation,
   addUnit,
+  applyDrop,
   deleteFormation,
   deleteUnit,
   moveFormation,
@@ -24,6 +25,8 @@ import {
 import type { DeleteMode } from '../db/statements.ts'
 import type { Loaded } from '../oob/load.ts'
 import type { TreeNode } from '../oob/tree.ts'
+import { planDrop, refKey } from '../oob/dnd.ts'
+import type { DragSubject, DropPlan, DropZone } from '../oob/dnd.ts'
 import type { EchelonSymbol, Formation, Unit } from '../oob/types.ts'
 
 type Editing =
@@ -45,6 +48,20 @@ export function OobDesigner({
   const [editing, setEditing] = useState<Editing>(null)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set())
+  const [dragging, setDragging] = useState<DragSubject | null>(null)
+  const [over, setOver] = useState<{
+    key: string
+    zone: DropZone
+    ok: boolean
+    reason?: string
+  } | null>(null)
+  // dragover fires continuously, so the plan is kept off React state and only
+  // the summary that actually changes the display is stored.
+  const planRef = useRef<DropPlan | null>(null)
+  // The subject is mirrored in a ref because dragover can arrive before React
+  // has committed the state set by dragstart, and a handler reading only state
+  // would ignore that first event.
+  const draggingRef = useRef<DragSubject | null>(null)
 
   // Writes go straight to the database; the reload afterwards is what refreshes
   // the tree. A rejected write leaves nothing behind, so showing the message and
@@ -92,6 +109,64 @@ export function OobDesigner({
         if (!next.delete(unitId)) next.add(unitId)
         return next
       }),
+  }
+
+  const endDrag = () => {
+    draggingRef.current = null
+    setDragging(null)
+    setOver(null)
+    planRef.current = null
+  }
+
+  const dnd: DndBindings = {
+    dragging,
+    isDragging: () => draggingRef.current !== null,
+    over,
+    onDragStart: (subject) => {
+      draggingRef.current = subject
+      setDragging(subject)
+      setOver(null)
+      planRef.current = null
+    },
+    onDragOver: (ref, zone) => {
+      const subject = draggingRef.current
+      if (!subject) return
+      const plan = planDrop(subject, ref, zone, {
+        formations: data.formations,
+        units: data.units,
+        echelons: data.echelons,
+      })
+      planRef.current = plan
+      const key = refKey(ref)
+      const ok = plan.kind !== 'rejected'
+      const reason = plan.kind === 'rejected' ? plan.reason : undefined
+      // Skip the state update when nothing visible changed, otherwise every
+      // pixel of pointer movement re-renders the whole tree.
+      setOver((current) =>
+        current &&
+        current.key === key &&
+        current.zone === zone &&
+        current.ok === ok
+          ? current
+          : { key, zone, ok, reason },
+      )
+    },
+    onDrop: () => {
+      const plan = planRef.current
+      const subject = draggingRef.current
+      endDrag()
+      if (!plan || plan.kind === 'rejected' || !subject) return
+      const name =
+        subject.kind === 'formation'
+          ? (data.formations.find((f) => f.id === subject.id)?.name ??
+            'formation')
+          : 'units'
+      void apply(async () => {
+        await applyDrop(plan, name)
+        setSelected(new Set())
+      })
+    },
+    onDragEnd: endDrag,
   }
 
   const moveTo = (target: MoveTarget) => {
@@ -173,6 +248,7 @@ export function OobDesigner({
         problems={data.problems}
         actions={actions}
         selectedUnitIds={selected}
+        dnd={dnd}
       />
 
       <button
@@ -182,6 +258,12 @@ export function OobDesigner({
       >
         Add independent formation
       </button>
+
+      {dragging && over && !over.ok && over.reason && (
+        <p className="sticky bottom-3 rounded-lg border border-red-300 bg-red-50/95 p-2 text-sm text-red-800 shadow-lg backdrop-blur">
+          {over.reason}
+        </p>
+      )}
 
       {selected.size > 0 && (
         <div className="sticky bottom-3 flex flex-wrap items-center gap-3 rounded-lg border border-slate-300 bg-white/95 p-3 shadow-lg backdrop-blur">

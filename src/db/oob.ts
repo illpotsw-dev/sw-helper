@@ -6,12 +6,15 @@ import {
   insertUnit,
   insertUnitType,
   moveFormationStatements,
+  moveUnitsAndOrderStatements,
   moveUnitsStatements,
+  reparentAndOrderStatements,
   resequenceFormationStatements,
   resequenceUnitStatements,
   type DeleteMode,
   type NewDesign,
 } from './statements.ts'
+import type { DropPlan } from '../oob/dnd.ts'
 export type { NewDesign, DeleteMode }
 import type {
   Design,
@@ -326,6 +329,29 @@ export async function moveUnits(input: {
   await transaction(
     moveUnitsStatements({ ...input, startSortOrder }),
     `Move ${count === 1 ? 'unit' : `${count} units`} to ${input.destination}`,
+  )
+}
+
+/**
+ * Carries out a drop worked out by planDrop. Rejected plans never reach here —
+ * the tree refuses them while dragging — so this only handles the two kinds
+ * that describe real work.
+ */
+export async function applyDrop(
+  plan: Extract<DropPlan, { kind: 'formation' | 'units' }>,
+  subjectName: string,
+): Promise<void> {
+  if (plan.kind === 'formation') {
+    await transaction(
+      reparentAndOrderStatements(plan),
+      `Move ${subjectName} to ${plan.destination}`,
+    )
+    return
+  }
+  const count = plan.unitIds.length
+  await transaction(
+    moveUnitsAndOrderStatements(plan),
+    `Move ${count === 1 ? 'unit' : `${count} units`} to ${plan.destination}`,
   )
 }
 
