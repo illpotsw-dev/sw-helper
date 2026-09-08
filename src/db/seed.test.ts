@@ -5,7 +5,9 @@ import { SCHEMA_STATEMENTS } from './schema.ts'
 import { designStatements, insertUnitType } from './statements.ts'
 import {
   beginAction,
+  clearHistory,
   finishAction,
+  historyState,
   installUndo,
   redo,
   undo,
@@ -147,6 +149,35 @@ test('a failure part way through leaves nothing behind', () => {
   assert.equal(Number(exec('SELECT count(*) AS n FROM unit_types')[0].n), 0)
   assert.equal(Number(exec('SELECT count(*) AS n FROM oob_formations')[0].n), 0)
   assert.equal(Number(exec('SELECT count(*) AS n FROM undo_actions')[0].n), 0)
+})
+
+test('clearing history after seeding leaves nothing to undo', () => {
+  const { run, exec, inTransaction } = open()
+  run(seedStatements(), 'Load Clan McGreggor')
+  inTransaction(() => clearHistory(exec))
+
+  // Without this the seed sits on the undo stack, and undoing it empties the
+  // database — whereupon the app finds no nation, seeds again, and that fresh
+  // action discards the redo. Undo becomes a no-op that costs you the redo.
+  assert.deepEqual(historyState(exec), {
+    canUndo: false,
+    canRedo: false,
+    undoLabel: null,
+    redoLabel: null,
+  })
+  assert.equal(inTransaction(() => undo(exec)), null)
+  assert.equal(Number(exec('SELECT count(*) AS n FROM oob_units')[0].n), 58)
+
+  // Changes made afterwards are still undoable, back to the seeded baseline.
+  run(
+    [{ sql: `UPDATE oob_designs SET name = 'Renamed' WHERE id = 1` }],
+    'Rename design',
+  )
+  assert.equal(inTransaction(() => undo(exec)), 'Rename design')
+  assert.equal(
+    String(exec('SELECT name FROM oob_designs WHERE id = 1')[0].name),
+    'Order of Battle',
+  )
 })
 
 test('seeding is one undo step, and undoing it clears the nation', () => {

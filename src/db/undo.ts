@@ -152,6 +152,18 @@ export function finishAction(exec: Exec, before: number, label: string): void {
   }
 }
 
+/**
+ * Discards all history, leaving the current contents as the baseline.
+ *
+ * Seeding a nation uses this: the starting roster is where the app begins, not
+ * something the player did, and leaving it on the stack means undo empties the
+ * app and the next load quietly seeds it again.
+ */
+export function clearHistory(exec: Exec): void {
+  exec('DELETE FROM undo_log')
+  exec('DELETE FROM undo_actions')
+}
+
 function step(exec: Exec, from: 'undo' | 'redo'): string | null {
   // The undo stack pops newest first. The redo stack pops oldest first, since
   // the most recently undone action has the lowest id of those sitting on it.

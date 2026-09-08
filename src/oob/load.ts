@@ -6,6 +6,7 @@ import {
   getLiveDesign,
   seedNation,
 } from '../db/oob.ts'
+import { clearHistory } from '../db/client.ts'
 import { parseOob, parseUnitTypes } from './yaml.ts'
 import { buildTree, type Tree } from './tree.ts'
 import { validate } from './validate.ts'
@@ -36,6 +37,12 @@ export async function seedPredefined(nation: PredefinedNation): Promise<void> {
       units,
     },
   })
+
+  // The starting roster is the baseline, not a change the player made. Leaving
+  // it on the undo stack is actively harmful: undoing it empties the database,
+  // the next load sees no nation and seeds again, and that fresh action wipes
+  // the redo stack — so undo silently becomes a no-op that costs you the redo.
+  await clearHistory()
 }
 
 /**

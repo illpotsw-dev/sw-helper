@@ -16,6 +16,9 @@ export type Request =
   | { id: number; kind: 'undo' }
   | { id: number; kind: 'redo' }
   | { id: number; kind: 'history' }
+  // Drops all history, making the current contents the baseline. Used after
+  // seeding, which is where the app starts rather than something the player did.
+  | { id: number; kind: 'clear-history' }
 
 // `rows` carries one result set per statement executed, so a transaction can
 // read values back from any step — a new row id, say — not just the last.

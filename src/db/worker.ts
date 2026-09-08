@@ -5,6 +5,7 @@ import sqlite3InitModule, {
 import { SCHEMA_STATEMENTS } from './schema.ts'
 import {
   beginAction,
+  clearHistory,
   finishAction,
   historyState,
   installUndo,
@@ -76,6 +77,8 @@ ctx.onmessage = async (event) => {
         undo(exec)
       } else if (request.kind === 'redo') {
         redo(exec)
+      } else if (request.kind === 'clear-history') {
+        clearHistory(exec)
       } else if (request.kind !== 'history') {
         const before = beginAction(exec)
         rows = statementsOf(request).map((statement) =>

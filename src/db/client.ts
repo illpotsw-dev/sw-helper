@@ -82,6 +82,15 @@ export async function redo(): Promise<void> {
   await send((id) => ({ id, kind: 'redo' }))
 }
 
+/**
+ * Drops all history, making the current contents the baseline. Called after
+ * seeding, since the starting roster is where the app begins rather than
+ * something the player did and so should not be undoable.
+ */
+export async function clearHistory(): Promise<void> {
+  await send((id) => ({ id, kind: 'clear-history' }))
+}
+
 /** Last known undo/redo availability. Updated after every request. */
 export const historyState = (): HistoryState => history
 
