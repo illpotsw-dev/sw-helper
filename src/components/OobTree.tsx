@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Rollup, Tree, TreeNode } from '../oob/tree.ts'
-import type { Echelon, Unit } from '../oob/types.ts'
+import type { Echelon, Formation, Problem, Unit } from '../oob/types.ts'
 
 const count = (value: number) => value.toLocaleString('en-US')
 
@@ -15,6 +15,34 @@ function strength(rollup: Pick<Rollup, 'men' | 'weapons'>): string {
 // Indentation stops deepening past this level so a five-deep tree still fits
 // on a phone. The left border keeps the nesting legible past that point.
 const indent = (depth: number) => `${Math.min(depth, 5) * 0.85}rem`
+
+export type TreeActions = {
+  onAddFormation: (parent: Formation) => void
+  onEditFormation: (formation: Formation) => void
+  onDeleteFormation: (node: TreeNode) => void
+  onAddUnit: (formation: Formation) => void
+  onEditUnit: (unit: Unit) => void
+  onDeleteUnit: (unit: Unit) => void
+}
+
+// Hidden until the row is hovered or focused on pointer devices, always shown
+// where there is no hover to rely on.
+const actionGroup =
+  'flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100'
+
+const actionButton =
+  'rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+
+function Problems({ problems }: { problems: Problem[] }) {
+  if (!problems.length) return null
+  return (
+    <ul className="pb-1 pl-6 text-xs text-red-700">
+      {problems.map((problem, index) => (
+        <li key={index}>{problem.message}</li>
+      ))}
+    </ul>
+  )
+}
 
 function EchelonBadge({
   symbol,
@@ -34,21 +62,52 @@ function EchelonBadge({
   )
 }
 
-function UnitRow({ unit, depth }: { unit: Unit; depth: number }) {
+function UnitRow({
+  unit,
+  depth,
+  actions,
+  problems,
+}: {
+  unit: Unit
+  depth: number
+  actions: TreeActions
+  problems: Problem[]
+}) {
   return (
-    <li
-      className="flex items-baseline gap-2 border-l border-slate-200 py-1 pr-2 text-sm"
-      style={{ paddingLeft: indent(depth) }}
-    >
-      <span className="min-w-0 flex-1 truncate text-slate-700">
-        {unit.designation}
-        {unit.equipment && (
-          <span className="text-slate-400"> · {unit.equipment}</span>
-        )}
-      </span>
-      <span className="shrink-0 tabular-nums text-slate-500">
-        {strength(unit)}
-      </span>
+    <li className="border-l border-slate-200">
+      <div
+        className="group flex items-baseline gap-2 py-1 pr-2 text-sm hover:bg-slate-50"
+        style={{ paddingLeft: indent(depth) }}
+      >
+        <span className="min-w-0 flex-1 truncate text-slate-700">
+          {unit.designation}
+          {unit.equipment && (
+            <span className="text-slate-400"> · {unit.equipment}</span>
+          )}
+        </span>
+        <span className="shrink-0 tabular-nums text-slate-500">
+          {strength(unit)}
+        </span>
+        <span className={actionGroup}>
+          <button
+            type="button"
+            className={actionButton}
+            title="Edit unit"
+            onClick={() => actions.onEditUnit(unit)}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            className={actionButton}
+            title="Delete unit"
+            onClick={() => actions.onDeleteUnit(unit)}
+          >
+            ✕
+          </button>
+        </span>
+      </div>
+      <Problems problems={problems} />
     </li>
   )
 }
@@ -59,12 +118,16 @@ function FormationNode({
   echelons,
   collapsed,
   onToggle,
+  actions,
+  problemsFor,
 }: {
   node: TreeNode
   depth: number
   echelons: readonly Echelon[]
   collapsed: ReadonlySet<number>
   onToggle: (id: number) => void
+  actions: TreeActions
+  problemsFor: (key: { formationId?: number; unitId?: number }) => Problem[]
 }) {
   const isCollapsed = collapsed.has(node.formation.id)
   const childCount = node.children.length + node.units.length
@@ -72,7 +135,7 @@ function FormationNode({
   return (
     <li className="border-l border-slate-200 first:border-l-0">
       <div
-        className="flex items-center gap-2 py-1.5 pr-2"
+        className="group flex items-center gap-2 py-1.5 pr-2 hover:bg-slate-50"
         style={{ paddingLeft: indent(depth) }}
       >
         <button
@@ -80,6 +143,7 @@ function FormationNode({
           onClick={() => onToggle(node.formation.id)}
           disabled={!childCount}
           aria-expanded={!isCollapsed}
+          aria-label={isCollapsed ? 'Expand' : 'Collapse'}
           className="w-4 shrink-0 text-slate-400 transition enabled:hover:text-slate-700 disabled:opacity-0"
         >
           {isCollapsed ? '▸' : '▾'}
@@ -91,12 +155,53 @@ function FormationNode({
         <span className="shrink-0 tabular-nums text-sm text-slate-600">
           {strength(node.total)}
         </span>
+        <span className={actionGroup}>
+          <button
+            type="button"
+            className={actionButton}
+            title="Add a formation under this one"
+            onClick={() => actions.onAddFormation(node.formation)}
+          >
+            +Formation
+          </button>
+          <button
+            type="button"
+            className={actionButton}
+            title="Attach a unit to this formation"
+            onClick={() => actions.onAddUnit(node.formation)}
+          >
+            +Unit
+          </button>
+          <button
+            type="button"
+            className={actionButton}
+            title="Edit formation"
+            onClick={() => actions.onEditFormation(node.formation)}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            className={actionButton}
+            title="Delete formation"
+            onClick={() => actions.onDeleteFormation(node)}
+          >
+            ✕
+          </button>
+        </span>
       </div>
+      <Problems problems={problemsFor({ formationId: node.formation.id })} />
 
       {!isCollapsed && childCount > 0 && (
         <ul>
           {node.units.map((unit) => (
-            <UnitRow key={unit.id} unit={unit} depth={depth + 1} />
+            <UnitRow
+              key={unit.id}
+              unit={unit}
+              depth={depth + 1}
+              actions={actions}
+              problems={problemsFor({ unitId: unit.id })}
+            />
           ))}
           {node.children.map((child) => (
             <FormationNode
@@ -106,6 +211,8 @@ function FormationNode({
               echelons={echelons}
               collapsed={collapsed}
               onToggle={onToggle}
+              actions={actions}
+              problemsFor={problemsFor}
             />
           ))}
         </ul>
@@ -117,9 +224,13 @@ function FormationNode({
 export function OobTree({
   tree,
   echelons,
+  problems,
+  actions,
 }: {
   tree: Tree
   echelons: readonly Echelon[]
+  problems: readonly Problem[]
+  actions: TreeActions
 }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set())
 
@@ -129,6 +240,13 @@ export function OobTree({
       if (!next.delete(id)) next.add(id)
       return next
     })
+
+  const problemsFor = (key: { formationId?: number; unitId?: number }) =>
+    problems.filter((problem) =>
+      key.formationId !== undefined
+        ? problem.formationId === key.formationId
+        : problem.unitId === key.unitId,
+    )
 
   return (
     <div className="space-y-6">
@@ -144,6 +262,8 @@ export function OobTree({
               echelons={echelons}
               collapsed={collapsed}
               onToggle={toggle}
+              actions={actions}
+              problemsFor={problemsFor}
             />
           </ul>
         </section>

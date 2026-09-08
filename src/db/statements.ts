@@ -53,6 +53,61 @@ export const insertUnit = (unit: Unit): Statement => ({
   ],
 })
 
+export type DeleteMode = 'promote' | 'subtree'
+
+/**
+ * Statements to remove a formation.
+ *
+ * 'subtree' leans on ON DELETE CASCADE to take everything below it. 'promote'
+ * first moves the children and any directly attached units up to the parent,
+ * so only the formation itself goes.
+ *
+ * Promoting is always sound with respect to echelons: the children already sit
+ * below the formation, which sits below the parent, so they still sit below the
+ * parent afterwards. Units are the exception — a root formation has nowhere to
+ * promote them to, which is why canPromote() refuses that case rather than
+ * quietly deleting them.
+ */
+export function deleteFormationStatements(input: {
+  formationId: number
+  parentId: number | null
+  mode: DeleteMode
+  childFormationIds: readonly number[]
+  attachedUnitIds: readonly number[]
+}): Statement[] {
+  const { formationId, parentId, mode, childFormationIds, attachedUnitIds } = input
+
+  if (mode === 'subtree') {
+    return [
+      { sql: 'DELETE FROM oob_formations WHERE id = ?', params: [formationId] },
+    ]
+  }
+
+  if (attachedUnitIds.length > 0 && parentId === null) {
+    throw new Error(
+      'Cannot promote units out of a top-level formation: they would have nowhere to report to.',
+    )
+  }
+
+  return [
+    ...childFormationIds.map((id) => ({
+      sql: 'UPDATE oob_formations SET parent_id = ? WHERE id = ?',
+      params: [parentId, id],
+    })),
+    ...attachedUnitIds.map((id) => ({
+      sql: 'UPDATE oob_units SET formation_id = ? WHERE id = ?',
+      params: [parentId, id],
+    })),
+    { sql: 'DELETE FROM oob_formations WHERE id = ?', params: [formationId] },
+  ]
+}
+
+/** Whether "promote children" is offerable for a formation. */
+export const canPromote = (
+  parentId: number | null,
+  attachedUnitCount: number,
+): boolean => parentId !== null || attachedUnitCount === 0
+
 export type NewDesign = {
   name: string
   note?: string

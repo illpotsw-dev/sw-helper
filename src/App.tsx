@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { redo, subscribeToHistory, undo, type HistoryState } from './db/client.ts'
 import { loadLiveOob, type Loaded } from './oob/load.ts'
 import { CLAN_MCGREGGOR } from './nations/clan-mcgreggor.ts'
-import { OobTree } from './components/OobTree.tsx'
+import { OobDesigner } from './components/OobDesigner.tsx'
 
 type State =
   | { status: 'loading' }
@@ -71,10 +71,33 @@ function App() {
 
   useEffect(() => subscribeToHistory(setHistory), [])
 
-  const step = async (action: () => Promise<void>) => {
-    await action()
-    await load()
-  }
+  const step = useCallback(
+    async (action: () => Promise<void>) => {
+      await action()
+      await load()
+    },
+    [load],
+  )
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') {
+        return
+      }
+      // Leave the browser's own undo alone while text is being edited.
+      const target = event.target as HTMLElement | null
+      if (
+        target?.isContentEditable ||
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '')
+      ) {
+        return
+      }
+      event.preventDefault()
+      void step(event.shiftKey ? redo : undo)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [step])
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -130,16 +153,7 @@ function App() {
         {state.status === 'ready' && (
           <>
             <Totals data={state.data} />
-
-            {state.data.problems.length > 0 && (
-              <ul className="space-y-1 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                {state.data.problems.map((problem, index) => (
-                  <li key={index}>{problem.message}</li>
-                ))}
-              </ul>
-            )}
-
-            <OobTree tree={state.data.tree} echelons={state.data.echelons} />
+            <OobDesigner data={state.data} onChanged={load} />
           </>
         )}
       </main>

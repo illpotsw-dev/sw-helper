@@ -1,10 +1,14 @@
 import { query, transaction } from './client.ts'
 import {
+  deleteFormationStatements,
   designStatements,
+  insertFormation,
+  insertUnit,
   insertUnitType,
+  type DeleteMode,
   type NewDesign,
 } from './statements.ts'
-export type { NewDesign }
+export type { NewDesign, DeleteMode }
 import type {
   Design,
   Echelon,
@@ -175,6 +179,122 @@ export async function seedNation(input: {
     input.label,
   )
   return designId
+}
+
+/** Next free slot among a formation's siblings, so new rows land at the end. */
+async function nextSortOrder(
+  designId: number,
+  parentId: number | null,
+): Promise<number> {
+  // `IS` rather than `=` so a NULL parent matches top-level formations.
+  const rows = await query(
+    `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM oob_formations
+     WHERE design_id = ? AND parent_id IS ?`,
+    [designId, parentId],
+  )
+  return num(rows[0]?.next)
+}
+
+export async function addFormation(input: {
+  designId: number
+  parentId: number | null
+  echelon: EchelonSymbol
+  name: string
+}): Promise<number> {
+  const [id, sortOrder] = await Promise.all([
+    nextId('oob_formations'),
+    nextSortOrder(input.designId, input.parentId),
+  ])
+  await transaction(
+    [insertFormation({ ...input, id, sortOrder })],
+    `Add ${input.name}`,
+  )
+  return id
+}
+
+export async function updateFormation(
+  id: number,
+  changes: { name: string; echelon: EchelonSymbol },
+): Promise<void> {
+  await query(
+    'UPDATE oob_formations SET name = ?, echelon = ? WHERE id = ?',
+    [changes.name, changes.echelon, id],
+    `Edit ${changes.name}`,
+  )
+}
+
+export async function deleteFormation(input: {
+  formationId: number
+  parentId: number | null
+  name: string
+  mode: DeleteMode
+  childFormationIds: readonly number[]
+  attachedUnitIds: readonly number[]
+}): Promise<void> {
+  await transaction(
+    deleteFormationStatements(input),
+    input.mode === 'subtree'
+      ? `Delete ${input.name} and everything under it`
+      : `Delete ${input.name}`,
+  )
+}
+
+async function nextUnitSortOrder(formationId: number): Promise<number> {
+  const rows = await query(
+    `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM oob_units
+     WHERE formation_id = ?`,
+    [formationId],
+  )
+  return num(rows[0]?.next)
+}
+
+export async function addUnit(input: {
+  formationId: number
+  unitType: string
+  designation: string
+  men: number
+  weapons: number
+  equipment: string
+}): Promise<number> {
+  const [id, sortOrder] = await Promise.all([
+    nextId('oob_units'),
+    nextUnitSortOrder(input.formationId),
+  ])
+  await transaction(
+    [insertUnit({ ...input, id, sortOrder })],
+    `Add ${input.designation}`,
+  )
+  return id
+}
+
+export async function updateUnit(
+  id: number,
+  changes: {
+    unitType: string
+    designation: string
+    men: number
+    weapons: number
+    equipment: string
+  },
+): Promise<void> {
+  await query(
+    `UPDATE oob_units
+     SET unit_type = ?, designation = ?, men = ?, weapons = ?, equipment = ?
+     WHERE id = ?`,
+    [
+      changes.unitType,
+      changes.designation,
+      changes.men,
+      changes.weapons,
+      changes.equipment,
+      id,
+    ],
+    `Edit ${changes.designation}`,
+  )
+}
+
+export async function deleteUnit(id: number, designation: string): Promise<void> {
+  await query('DELETE FROM oob_units WHERE id = ?', [id], `Delete ${designation}`)
 }
 
 /** Whether this browser already holds a nation. */
