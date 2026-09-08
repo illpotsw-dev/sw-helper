@@ -5,6 +5,10 @@ import {
   insertFormation,
   insertUnit,
   insertUnitType,
+  moveFormationStatements,
+  moveUnitsStatements,
+  resequenceFormationStatements,
+  resequenceUnitStatements,
   type DeleteMode,
   type NewDesign,
 } from './statements.ts'
@@ -291,6 +295,52 @@ export async function updateUnit(
     ],
     `Edit ${changes.designation}`,
   )
+}
+
+/**
+ * Reparents a formation, subtree and all. The caller is responsible for having
+ * checked canReparent — the UI only offers destinations that pass, so an
+ * invalid tree is unreachable rather than merely reported.
+ */
+export async function moveFormation(input: {
+  formationId: number
+  designId: number
+  name: string
+  newParentId: number | null
+  destination: string
+}): Promise<void> {
+  const sortOrder = await nextSortOrder(input.designId, input.newParentId)
+  await transaction(
+    moveFormationStatements({ ...input, sortOrder }),
+    `Move ${input.name} to ${input.destination}`,
+  )
+}
+
+export async function moveUnits(input: {
+  unitIds: readonly number[]
+  targetFormationId: number
+  destination: string
+}): Promise<void> {
+  const startSortOrder = await nextUnitSortOrder(input.targetFormationId)
+  const count = input.unitIds.length
+  await transaction(
+    moveUnitsStatements({ ...input, startSortOrder }),
+    `Move ${count === 1 ? 'unit' : `${count} units`} to ${input.destination}`,
+  )
+}
+
+export async function reorderFormations(
+  orderedIds: readonly number[],
+  label: string,
+): Promise<void> {
+  await transaction(resequenceFormationStatements(orderedIds), label)
+}
+
+export async function reorderUnits(
+  orderedIds: readonly number[],
+  label: string,
+): Promise<void> {
+  await transaction(resequenceUnitStatements(orderedIds), label)
 }
 
 export async function deleteUnit(id: number, designation: string): Promise<void> {

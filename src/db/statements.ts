@@ -53,6 +53,51 @@ export const insertUnit = (unit: Unit): Statement => ({
   ],
 })
 
+/**
+ * Reparents a formation. Its subtree comes along for free — children reference
+ * it by id, so nothing below it needs touching.
+ */
+export const moveFormationStatements = (input: {
+  formationId: number
+  newParentId: number | null
+  sortOrder: number
+}): Statement[] => [
+  {
+    sql: 'UPDATE oob_formations SET parent_id = ?, sort_order = ? WHERE id = ?',
+    params: [input.newParentId, input.sortOrder, input.formationId],
+  },
+]
+
+/** Reattaches units to another formation, keeping the order they were listed in. */
+export const moveUnitsStatements = (input: {
+  unitIds: readonly number[]
+  targetFormationId: number
+  startSortOrder: number
+}): Statement[] =>
+  input.unitIds.map((id, index) => ({
+    sql: 'UPDATE oob_units SET formation_id = ?, sort_order = ? WHERE id = ?',
+    params: [input.targetFormationId, input.startSortOrder + index, id],
+  }))
+
+// Rewriting every sibling's position from its index is steadier than swapping
+// pairs: gaps and duplicate sort_order values heal themselves on the next
+// reorder rather than accumulating.
+export const resequenceFormationStatements = (
+  orderedIds: readonly number[],
+): Statement[] =>
+  orderedIds.map((id, index) => ({
+    sql: 'UPDATE oob_formations SET sort_order = ? WHERE id = ?',
+    params: [index, id],
+  }))
+
+export const resequenceUnitStatements = (
+  orderedIds: readonly number[],
+): Statement[] =>
+  orderedIds.map((id, index) => ({
+    sql: 'UPDATE oob_units SET sort_order = ? WHERE id = ?',
+    params: [index, id],
+  }))
+
 export type DeleteMode = 'promote' | 'subtree'
 
 /**

@@ -10,7 +10,14 @@ import { clearHistory } from '../db/client.ts'
 import { parseOob, parseUnitTypes } from './yaml.ts'
 import { buildTree, type Tree } from './tree.ts'
 import { validate } from './validate.ts'
-import type { Design, Echelon, Problem, UnitType } from './types.ts'
+import type {
+  Design,
+  Echelon,
+  Formation,
+  Problem,
+  Unit,
+  UnitType,
+} from './types.ts'
 import type { PredefinedNation } from '../nations/clan-mcgreggor.ts'
 
 export type Loaded = {
@@ -18,6 +25,9 @@ export type Loaded = {
   echelons: Echelon[]
   unitTypes: UnitType[]
   tree: Tree
+  /** Flat rows alongside the tree, for checks that walk parent links. */
+  formations: Formation[]
+  units: Unit[]
   problems: Problem[]
 }
 
@@ -68,6 +78,8 @@ export async function loadLiveOob(
     echelons,
     unitTypes,
     tree: buildTree(contents.formations, contents.units, unitTypes),
+    formations: contents.formations,
+    units: contents.units,
     problems: validate({ ...contents, unitTypes, echelons }),
   }
 }

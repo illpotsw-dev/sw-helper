@@ -16,22 +16,88 @@ function strength(rollup: Pick<Rollup, 'men' | 'weapons'>): string {
 // on a phone. The left border keeps the nesting legible past that point.
 const indent = (depth: number) => `${Math.min(depth, 5) * 0.85}rem`
 
+/** The sibling order with one entry shifted, or null at either end. */
+function reordered(
+  ids: readonly number[],
+  index: number,
+  delta: number,
+): number[] | null {
+  const target = index + delta
+  if (target < 0 || target >= ids.length) return null
+  const next = [...ids]
+  ;[next[index], next[target]] = [next[target], next[index]]
+  return next
+}
+
 export type TreeActions = {
   onAddFormation: (parent: Formation) => void
   onEditFormation: (formation: Formation) => void
   onDeleteFormation: (node: TreeNode) => void
+  onMoveFormation: (formation: Formation) => void
   onAddUnit: (formation: Formation) => void
   onEditUnit: (unit: Unit) => void
   onDeleteUnit: (unit: Unit) => void
+  onMoveUnit: (unit: Unit) => void
+  onReorderFormations: (orderedIds: number[], label: string) => void
+  onReorderUnits: (orderedIds: number[], label: string) => void
+  onToggleUnitSelected: (unitId: number) => void
 }
 
 // Hidden until the row is hovered or focused on pointer devices, always shown
 // where there is no hover to rely on.
+// ml-auto keeps the group right-aligned whether it shares the row or, on a
+// narrow screen, wraps onto a line of its own.
 const actionGroup =
-  'flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100'
+  'ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100'
+
+// The row wraps rather than letting seven buttons crush the name to nothing:
+// below roughly 480px the actions drop to their own line. The name keeps a
+// floor so it stays readable instead of truncating to a couple of characters.
+const rowLayout = 'group flex flex-wrap items-center gap-x-2 gap-y-1 pr-2'
+const nameCell = 'min-w-[7rem] flex-1 truncate'
 
 const actionButton =
-  'rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+  'rounded px-1.5 py-0.5 text-xs text-slate-500 enabled:hover:bg-slate-200 enabled:hover:text-slate-900 disabled:opacity-30'
+
+function Reorder({
+  siblingIds,
+  index,
+  onReorder,
+  label,
+}: {
+  siblingIds: readonly number[]
+  index: number
+  onReorder: (orderedIds: number[], label: string) => void
+  label: string
+}) {
+  if (siblingIds.length < 2) return null
+  const move = (delta: number) => {
+    const next = reordered(siblingIds, index, delta)
+    if (next) onReorder(next, label)
+  }
+  return (
+    <>
+      <button
+        type="button"
+        className={actionButton}
+        title="Move up"
+        disabled={index === 0}
+        onClick={() => move(-1)}
+      >
+        ↑
+      </button>
+      <button
+        type="button"
+        className={actionButton}
+        title="Move down"
+        disabled={index === siblingIds.length - 1}
+        onClick={() => move(1)}
+      >
+        ↓
+      </button>
+    </>
+  )
+}
 
 function Problems({ problems }: { problems: Problem[] }) {
   if (!problems.length) return null
@@ -67,19 +133,36 @@ function UnitRow({
   depth,
   actions,
   problems,
+  siblingIds,
+  index,
+  selected,
+  selecting,
 }: {
   unit: Unit
   depth: number
   actions: TreeActions
   problems: Problem[]
+  siblingIds: readonly number[]
+  index: number
+  selected: boolean
+  selecting: boolean
 }) {
   return (
     <li className="border-l border-slate-200">
       <div
-        className="group flex items-baseline gap-2 py-1 pr-2 text-sm hover:bg-slate-50"
+        className={`${rowLayout} py-1 text-sm hover:bg-slate-50 ${selected ? 'bg-sky-50' : ''}`}
         style={{ paddingLeft: indent(depth) }}
       >
-        <span className="min-w-0 flex-1 truncate text-slate-700">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => actions.onToggleUnitSelected(unit.id)}
+          aria-label={`Select ${unit.designation}`}
+          // Kept out of the way until a selection is under way, then shown on
+          // every row so the set being acted on is obvious.
+          className={`shrink-0 ${selecting ? '' : 'opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100'}`}
+        />
+        <span className={`${nameCell} text-slate-700`}>
           {unit.designation}
           {unit.equipment && (
             <span className="text-slate-400"> · {unit.equipment}</span>
@@ -89,6 +172,20 @@ function UnitRow({
           {strength(unit)}
         </span>
         <span className={actionGroup}>
+          <Reorder
+            siblingIds={siblingIds}
+            index={index}
+            onReorder={actions.onReorderUnits}
+            label={`Reorder units under ${unit.designation}`}
+          />
+          <button
+            type="button"
+            className={actionButton}
+            title="Move to another formation"
+            onClick={() => actions.onMoveUnit(unit)}
+          >
+            Move
+          </button>
           <button
             type="button"
             className={actionButton}
@@ -120,6 +217,10 @@ function FormationNode({
   onToggle,
   actions,
   problemsFor,
+  siblingIds,
+  index,
+  selectedUnitIds,
+  selecting,
 }: {
   node: TreeNode
   depth: number
@@ -128,14 +229,20 @@ function FormationNode({
   onToggle: (id: number) => void
   actions: TreeActions
   problemsFor: (key: { formationId?: number; unitId?: number }) => Problem[]
+  siblingIds: readonly number[]
+  index: number
+  selectedUnitIds: ReadonlySet<number>
+  selecting: boolean
 }) {
   const isCollapsed = collapsed.has(node.formation.id)
   const childCount = node.children.length + node.units.length
+  const unitIds = node.units.map((u) => u.id)
+  const childIds = node.children.map((c) => c.formation.id)
 
   return (
     <li className="border-l border-slate-200 first:border-l-0">
       <div
-        className="group flex items-center gap-2 py-1.5 pr-2 hover:bg-slate-50"
+        className={`${rowLayout} py-1.5 hover:bg-slate-50`}
         style={{ paddingLeft: indent(depth) }}
       >
         <button
@@ -149,20 +256,34 @@ function FormationNode({
           {isCollapsed ? '▸' : '▾'}
         </button>
         <EchelonBadge symbol={node.formation.echelon} echelons={echelons} />
-        <span className="min-w-0 flex-1 truncate font-medium text-slate-900">
+        <span className={`${nameCell} font-medium text-slate-900`}>
           {node.formation.name}
         </span>
         <span className="shrink-0 tabular-nums text-sm text-slate-600">
           {strength(node.total)}
         </span>
         <span className={actionGroup}>
+          <Reorder
+            siblingIds={siblingIds}
+            index={index}
+            onReorder={actions.onReorderFormations}
+            label={`Reorder ${node.formation.name} among its siblings`}
+          />
+          <button
+            type="button"
+            className={actionButton}
+            title="Move this formation, and everything under it, elsewhere"
+            onClick={() => actions.onMoveFormation(node.formation)}
+          >
+            Move
+          </button>
           <button
             type="button"
             className={actionButton}
             title="Add a formation under this one"
             onClick={() => actions.onAddFormation(node.formation)}
           >
-            +Formation
+            +Sub
           </button>
           <button
             type="button"
@@ -194,16 +315,20 @@ function FormationNode({
 
       {!isCollapsed && childCount > 0 && (
         <ul>
-          {node.units.map((unit) => (
+          {node.units.map((unit, unitIndex) => (
             <UnitRow
               key={unit.id}
               unit={unit}
               depth={depth + 1}
               actions={actions}
               problems={problemsFor({ unitId: unit.id })}
+              siblingIds={unitIds}
+              index={unitIndex}
+              selected={selectedUnitIds.has(unit.id)}
+              selecting={selecting}
             />
           ))}
-          {node.children.map((child) => (
+          {node.children.map((child, childIndex) => (
             <FormationNode
               key={child.formation.id}
               node={child}
@@ -213,6 +338,10 @@ function FormationNode({
               onToggle={onToggle}
               actions={actions}
               problemsFor={problemsFor}
+              siblingIds={childIds}
+              index={childIndex}
+              selectedUnitIds={selectedUnitIds}
+              selecting={selecting}
             />
           ))}
         </ul>
@@ -226,11 +355,13 @@ export function OobTree({
   echelons,
   problems,
   actions,
+  selectedUnitIds,
 }: {
   tree: Tree
   echelons: readonly Echelon[]
   problems: readonly Problem[]
   actions: TreeActions
+  selectedUnitIds: ReadonlySet<number>
 }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set())
 
@@ -248,9 +379,12 @@ export function OobTree({
         : problem.unitId === key.unitId,
     )
 
+  const rootIds = tree.roots.map((r) => r.formation.id)
+  const selecting = selectedUnitIds.size > 0
+
   return (
     <div className="space-y-6">
-      {tree.roots.map((root) => (
+      {tree.roots.map((root, index) => (
         <section
           key={root.formation.id}
           className="overflow-hidden rounded-lg border border-slate-200 bg-white"
@@ -264,6 +398,10 @@ export function OobTree({
               onToggle={toggle}
               actions={actions}
               problemsFor={problemsFor}
+              siblingIds={rootIds}
+              index={index}
+              selectedUnitIds={selectedUnitIds}
+              selecting={selecting}
             />
           </ul>
         </section>
