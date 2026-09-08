@@ -4,6 +4,7 @@ import { FormationForm } from './FormationForm.tsx'
 import { UnitForm, type UnitValues } from './UnitForm.tsx'
 import { DeleteFormationPrompt } from './DeleteFormationPrompt.tsx'
 import { BattleDialog, type StrengthChange } from './BattleDialog.tsx'
+import { ExportDialog } from './ExportDialog.tsx'
 import { buttonStyles } from './styles.ts'
 import {
   MoveDialog,
@@ -51,6 +52,7 @@ type Editing =
   | { kind: 'edit-unit'; unit: Unit }
   | { kind: 'move'; subject: MoveSubject }
   | { kind: 'battle' }
+  | { kind: 'export' }
   | null
 
 export function OobDesigner({
@@ -327,6 +329,13 @@ export function OobDesigner({
         >
           Battle losses…
         </button>
+        <button
+          type="button"
+          className={buttonStyles.quiet}
+          onClick={() => setEditing({ kind: 'export' })}
+        >
+          Export YAML…
+        </button>
       </div>
 
       {dragging && over && !over.ok && over.reason && (
@@ -414,6 +423,10 @@ export function OobDesigner({
           onApply={applyBattle}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {editing?.kind === 'export' && (
+        <ExportDialog data={data} onClose={() => setEditing(null)} />
       )}
 
       {editing?.kind === 'move' && (
