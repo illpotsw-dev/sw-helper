@@ -1,5 +1,6 @@
 import {
   hasNation,
+  getNationName,
   listEchelons,
   listStock,
   listUnitTypes,
@@ -31,6 +32,8 @@ import type { PredefinedNation } from '../nations/clan-mcgreggor.ts'
 
 export type Loaded = {
   design: Design
+  /** The nation itself, which the stockpile report is headed with. */
+  nationName: string
   echelons: Echelon[]
   unitTypes: UnitType[]
   weapons: Weapon[]
@@ -93,6 +96,7 @@ export async function seedPredefined(nation: PredefinedNation): Promise<void> {
 
   await seedNation({
     label: `Load ${nation.name}`,
+    name: nation.name,
     unitTypes,
     weapons,
     stock,
@@ -124,7 +128,8 @@ export async function loadLiveOob(
   const design = await getLiveDesign()
   if (!design) return null
 
-  const [echelons, unitTypes, weapons, stock, contents] = await Promise.all([
+  const [nationName, echelons, unitTypes, weapons, stock, contents] = await Promise.all([
+    getNationName(),
     listEchelons(),
     listUnitTypes(),
     listWeapons(),
@@ -134,6 +139,7 @@ export async function loadLiveOob(
 
   return {
     design,
+    nationName,
     echelons,
     unitTypes,
     weapons,

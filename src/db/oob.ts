@@ -134,6 +134,12 @@ export async function replaceUnitTypes(types: readonly UnitType[]): Promise<void
   )
 }
 
+/** The nation's own name, for the reports that are headed with it. */
+export async function getNationName(): Promise<string> {
+  const rows = await query('SELECT name FROM nation_profile WHERE id = 1')
+  return str(rows[0]?.name)
+}
+
 export async function listWeapons(): Promise<Weapon[]> {
   const rows = await query('SELECT * FROM weapons ORDER BY name')
   return rows.map(toWeapon)
@@ -245,6 +251,8 @@ export async function createDesign(design: NewDesign): Promise<number> {
  */
 export async function seedNation(input: {
   label: string
+  /** The nation's own name, which the stockpile report is headed with. */
+  name: string
   unitTypes: readonly UnitType[]
   weapons: readonly Weapon[]
   stock: readonly StockEntry[]
@@ -253,6 +261,10 @@ export async function seedNation(input: {
   const [designId, formationBase, unitBase] = await nextIds()
   await transaction(
     [
+      {
+        sql: 'INSERT OR REPLACE INTO nation_profile (id, name) VALUES (1, ?)',
+        params: [input.name],
+      },
       ...input.unitTypes.map(insertUnitType),
       ...catalogStatements(input.weapons, input.stock),
       ...designStatements(designId, formationBase, unitBase, input.design),

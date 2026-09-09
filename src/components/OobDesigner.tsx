@@ -6,6 +6,8 @@ import { DeleteFormationPrompt } from './DeleteFormationPrompt.tsx'
 import { BattleDialog, type StrengthChange } from './BattleDialog.tsx'
 import { RearmDialog } from './RearmDialog.tsx'
 import { ExportDialog } from './ExportDialog.tsx'
+import { exportOobYaml } from '../oob/export.ts'
+import { exportStockpileMarkdown } from '../oob/stockpile-report.ts'
 import { buttonStyles } from './styles.ts'
 import {
   MoveDialog,
@@ -57,6 +59,7 @@ type Editing =
   | { kind: 'battle' }
   | { kind: 'arm'; movement: Movement; unitIds?: ReadonlySet<number> }
   | { kind: 'export' }
+  | { kind: 'stockpile' }
   | null
 
 export function OobDesigner({
@@ -345,6 +348,13 @@ export function OobDesigner({
         <button
           type="button"
           className={buttonStyles.quiet}
+          onClick={() => setEditing({ kind: 'stockpile' })}
+        >
+          Stockpile report…
+        </button>
+        <button
+          type="button"
+          className={buttonStyles.quiet}
           onClick={() => setEditing({ kind: 'export' })}
         >
           Export YAML…
@@ -464,7 +474,38 @@ export function OobDesigner({
       )}
 
       {editing?.kind === 'export' && (
-        <ExportDialog data={data} onClose={() => setEditing(null)} />
+        <ExportDialog
+          title="Export YAML"
+          description={`${data.design.name} in army-oob.yml format — re-imports unchanged.`}
+          text={exportOobYaml({
+            tree: data.tree,
+            formations: data.formations,
+            units: data.units,
+            design: data.design,
+          })}
+          summary={`${data.formations.length} formation${
+            data.formations.length === 1 ? '' : 's'
+          } · ${data.units.length} unit${data.units.length === 1 ? '' : 's'}`}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {editing?.kind === 'stockpile' && (
+        <ExportDialog
+          title="Stockpile report"
+          description="Weapons the nation owns that nobody is carrying, ready to paste into Discord."
+          monospace={false}
+          text={exportStockpileMarkdown({
+            nationName: data.nationName,
+            weapons: data.weapons,
+            stock: data.stock,
+            units: data.units,
+          })}
+          summary={`${
+            data.stock.filter((entry) => entry.quantity > 0).length
+          } of ${data.weapons.length} patterns held`}
+          onClose={() => setEditing(null)}
+        />
       )}
 
       {editing?.kind === 'move' && (

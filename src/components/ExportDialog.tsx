@@ -1,38 +1,36 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Dialog, DialogActions } from './Dialog.tsx'
 import { buttonStyles } from './styles.ts'
-import { exportOobYaml } from '../oob/export.ts'
-import type { Loaded } from '../oob/load.ts'
 
 type CopyState = 'idle' | 'copied' | 'failed'
 
 /**
- * The design as army-oob.yml, copied to the clipboard — mvp-oob-designer.md §8.
+ * A generated document, copied to the clipboard: the design as army-oob.yml
+ * (mvp-oob-designer.md §8), or the stockpile report (mvp-stockpile.md §7).
  *
  * The text is shown as well as copied rather than copied silently: clipboard
  * writes are refused outright in a few browser configurations, and on a phone a
  * player may want to read what they are about to paste before pasting it.
  */
 export function ExportDialog({
-  data,
+  title,
+  description,
+  text,
+  summary,
+  monospace = true,
   onClose,
 }: {
-  data: Loaded
+  title: string
+  description: string
+  text: string
+  /** The line under the box: what the player is about to paste. */
+  summary: string
+  /** Off for markdown, which is prose and reads badly in a mono face. */
+  monospace?: boolean
   onClose: () => void
 }) {
   const [copy, setCopy] = useState<CopyState>('idle')
   const textRef = useRef<HTMLTextAreaElement>(null)
-
-  const text = useMemo(
-    () =>
-      exportOobYaml({
-        tree: data.tree,
-        formations: data.formations,
-        units: data.units,
-        design: data.design,
-      }),
-    [data],
-  )
 
   useEffect(() => {
     if (copy === 'idle') return
@@ -53,15 +51,8 @@ export function ExportDialog({
     }
   }
 
-  const lines = text.split('\n').length
-
   return (
-    <Dialog
-      title="Export YAML"
-      description={`${data.design.name} in army-oob.yml format — re-imports unchanged.`}
-      wide
-      onClose={onClose}
-    >
+    <Dialog title={title} description={description} wide onClose={onClose}>
       <textarea
         ref={textRef}
         readOnly
@@ -69,12 +60,10 @@ export function ExportDialog({
         rows={16}
         spellCheck={false}
         onFocus={(event) => event.currentTarget.select()}
-        className="w-full rounded border border-slate-300 bg-slate-50 p-2 font-mono text-xs text-slate-800 focus:border-slate-500 focus:outline-none"
+        className={`w-full rounded border border-slate-300 bg-slate-50 p-2 text-xs text-slate-800 focus:border-slate-500 focus:outline-none ${monospace ? 'font-mono' : ''}`}
       />
       <p className="mt-1 text-xs text-slate-500">
-        {data.formations.length} formation
-        {data.formations.length === 1 ? '' : 's'} · {data.units.length} unit
-        {data.units.length === 1 ? '' : 's'} · {lines} lines
+        {summary} · {text.split('\n').length} lines
       </p>
 
       <DialogActions>
