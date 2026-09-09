@@ -1,0 +1,153 @@
+# Clan McGreggor — Weapons Catalog
+#
+# Every weapon pattern the clan has ever put in a soldier's hands, whether
+# it made them or took them. Stands to stockpile.yml exactly as
+# land-units.yml stands to army-oob.yml: this file defines the patterns,
+# the other records how many spares are held.
+# See mvp/product/mvp-stockpile.md §2.1.
+#
+# name:        the primary key. Matched EXACTLY — character for character —
+#              by army-oob.yml's `weapon:` field and by stockpile.yml.
+#              No case-folding, no normalization, no fuzzy matching. A near
+#              miss is a second arsenal, not a typo the app will forgive.
+# class:       small_arm | gun
+#              Mirrors the men/guns split in land-units.yml: man-counted
+#              units carry small arms, gun-counted units (artillery,
+#              support_weapons) are equipped with guns. Issuing the wrong
+#              class to a unit is an error, not a judgement call.
+# origin:      where it came from — a nation, or the arsenal that makes it.
+#              Free text; nothing in the app depends on it beyond grouping
+#              the stockpile report.
+# description: optional note.
+#
+# --- ORIGINS ARE INFERRED — CORRECT THESE ---
+# Nothing in the repo records who makes any of these. The `origin` values
+# below are read off the weapon names and off how the roster is armed.
+# Confidence is marked per entry:
+#   [SELF-EVIDENT] the origin is in the weapon's own name
+#   [INFERRED]     read off naming or off who carries it — check it
+#
+# The `description` fields state only what army-oob.yml actually shows —
+# quantities, unit types, and where they sit. They are stubs for the
+# clan's own lore, not lore themselves.
+
+weapons:
+  # ============================================================
+  # Clan McGreggor — domestic patterns
+  # ============================================================
+
+  - name: Warden Rifle (.45 Caliber)
+    class: small_arm
+    origin: Clan McGreggor            # [INFERRED] standard service arm
+    description: >-
+      The clan's standard service rifle and by far its most widely issued
+      weapon: 20,215 across 26 units — all 24 Clan Levies battalions,
+      spread three to a brigade across every one of the army's eight
+      infantry brigades, plus two of the three Clan's Guard battalions
+      held as army troops. Large-bore and black-powder-era beside the
+      Lexington and Barclay patterns the clan has since acquired.
+
+  - name: Cyclone Repeating Gun (.50 Caliber)
+    class: gun
+    origin: Clan McGreggor            # [INFERRED] — low confidence
+    description: >-
+      The clan's machine gun and its most numerous gun by a wide margin:
+      282 across six Machine Gun Batteries, one in each of the six
+      numbered Infantry Brigades. The two Flannery brigades have none.
+
+  - name: 18-Pounder Pattern M Field Gun
+    class: gun
+    origin: Clan McGreggor            # [INFERRED] — low confidence
+    description: >-
+      Medium field gun, 120 across six Medium Artillery Batteries. All
+      six are army troops attached directly to McGreggor Army rather than
+      to any division — the clan's entire medium artillery park, held at
+      the top of the tree.
+
+  - name: Vanguard Light Field Gun (12-Pounder)
+    class: gun
+    origin: Clan McGreggor            # [INFERRED] — low confidence
+    description: >-
+      Light field piece, 40 guns across two Light Artillery Batteries,
+      in the 1st and 2nd Infantry Brigades.
+
+  - name: Glenforge 6-Pounder Smoothbore Cannon
+    class: gun
+    origin: Clan McGreggor            # [INFERRED] Highland name, archaic type
+    description: >-
+      Smoothbore artillery, 36 guns across the Cavalry Division's two
+      Light Artillery Batteries. The oldest pattern still in the line.
+
+  # ============================================================
+  # Rossenheim
+  # ============================================================
+  # Two of these name Rossenheim outright. The other two are grouped here
+  # because the Portree Garrison is armed with all four and nothing else —
+  # its infantry on Einzelgänger, its batteries on Donnerwulf, Rossenheim
+  # Medium and Rossenheim Siege. A garrison kitted out by one supplier is
+  # a better reason than the naming alone, but it is still an inference:
+  # if Einzelgänger and Donnerwulf are not Rossenheim, this is the block
+  # to split.
+
+  - name: Einzelgänger (.68 Caliber)
+    class: small_arm
+    origin: Rossenheim                # [INFERRED] see block note
+    description: >-
+      Heavy-bore rifle, 3,400 of them, arming the Portree Garrison's
+      single Garrison Infantry unit — its whole establishment — and
+      nothing else in the army.
+
+  - name: Rossenheim Machine Gun (11mm)
+    class: gun
+    origin: Rossenheim                # [SELF-EVIDENT]
+    description: >-
+      20 guns, the Mountain Force's single Machine Gun Battery.
+
+  - name: Rossenheim Light Artillery
+    class: gun
+    origin: Rossenheim                # [SELF-EVIDENT]
+    description: >-
+      8 guns, the Mountain Force's Light Artillery Battery.
+
+  - name: Rossenheim Medium Artillery Gun
+    class: gun
+    origin: Rossenheim                # [SELF-EVIDENT]
+    description: >-
+      6 guns, the Portree Garrison's Medium Artillery Battery.
+
+  - name: Donnerwulf (30mm)
+    class: gun
+    origin: Rossenheim                # [INFERRED] see block note
+    description: >-
+      12 guns, the Portree Garrison's Autocannon Battery.
+
+  - name: Rossenheim Siege Gun
+    class: gun
+    origin: Rossenheim                # [SELF-EVIDENT]
+    description: >-
+      A single gun in the Portree Garrison's Siege Artillery Battery —
+      the smallest holding in the army, and the only siege piece the
+      clan fields.
+
+  # ============================================================
+  # Other foreign patterns in clan hands
+  # ============================================================
+  # Both sit in the Mountain Force, which together with its two Rossenheim
+  # batteries is armed entirely with foreign weapons — not one domestic
+  # pattern anywhere in the formation.
+
+  - name: Barclay Hornets (7x57mm)
+    class: small_arm
+    origin: Barclay                   # [SELF-EVIDENT]
+    description: >-
+      3,500 rifles across the Mountain Force's three Highlander
+      battalions and one Clan's Guard battalion held as army troops —
+      the one Guard battalion of the three not carrying the Warden.
+
+  - name: Lexington Pattern Rifle (.30-06 Lexington Smokeless)
+    class: small_arm
+    origin: Lexington                 # [SELF-EVIDENT] named in the cartridge
+    description: >-
+      Smokeless-cartridge rifle, 870 of them, carried by the Mountain
+      Force's two Highlander Sharpshooter battalions. The most modern
+      small arm in the army, and issued to its best marksmen.

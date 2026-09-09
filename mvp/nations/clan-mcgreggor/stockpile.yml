@@ -1,0 +1,64 @@
+# Clan McGreggor — Weapons Stockpile
+#
+# Weapons the clan owns that nobody is carrying. The other half of the
+# ledger is army-oob.yml: a weapon is either in a unit's hands or in this
+# pile, never in neither or both, and
+#
+#     owned = this file + every unit's holding in the live OOB
+#
+# Unlimited capacity, no upkeep — nothing here reaches the Turn Budget.
+# See mvp/product/mvp-stockpile.md §3.
+#
+# weapon:   must match a `name` in weapons.yml EXACTLY, character for
+#           character. A weapon this file names that the catalog does not
+#           have fails the whole import.
+# quantity: how many are in the pile. Whole numbers, never negative.
+#
+# A weapon absent from this file has none in stock — the two are the same
+# statement, so there is no need to list a pattern at zero. Lexington
+# Pattern Rifles are the case in point: all 870 the clan owns are in the
+# hands of the Highlander Sharpshooters, and none are spare.
+#
+# --- PLACEHOLDER QUANTITIES — REPLACE WITH THE REAL ONES ---
+# Nothing in the repo records what is actually in the clan's stores;
+# army-oob.yml only says what is issued. Every number below is invented,
+# in the same spirit as the PLACEHOLDER COSTS in land-units.yml, and
+# wants a real figure.
+#
+# They are not arbitrary, though. Four Mounted Borders battalions in the
+# Cavalry Division — 770, 880, 910 and 935 men, 3,495 in all — are on the
+# books as Unarmed. A unit takes one pattern, so any single small arm
+# held in 770 or more would arm the smallest of them, and a clan that had
+# the rifles to arm its cavalry presumably would have. Every small-arm
+# figure below is therefore kept under 770: the stockpile is short, which
+# is why those battalions are riding without rifles and what makes them
+# the obvious first job for the re-arm flow.
+
+stockpile:
+  # --- Small arms — 1,100 in store, against 3,495 men who need them ---
+
+  - weapon: Warden Rifle (.45 Caliber)
+    quantity: 615
+
+  - weapon: Barclay Hornets (7x57mm)
+    quantity: 340
+
+  - weapon: Einzelgänger (.68 Caliber)
+    quantity: 145
+
+  # --- Guns — 24 in store ---
+
+  - weapon: Glenforge 6-Pounder Smoothbore Cannon
+    quantity: 11
+
+  - weapon: Cyclone Repeating Gun (.50 Caliber)
+    quantity: 6
+
+  - weapon: 18-Pounder Pattern M Field Gun
+    quantity: 4
+
+  - weapon: Vanguard Light Field Gun (12-Pounder)
+    quantity: 2
+
+  - weapon: Rossenheim Machine Gun (11mm)
+    quantity: 1

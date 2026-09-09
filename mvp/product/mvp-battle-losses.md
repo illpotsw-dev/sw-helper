@@ -68,7 +68,9 @@ This also keeps the roster tidy indefinitely. All 37 of Clan McGreggor's men-cou
 ## 5. Reinforcements
 The same engine with the sign flipped and a different ceiling: capacity is `establishment − current strength` rather than current strength, so a battalion cannot be filled past its paper strength and a unit already at establishment is skipped rather than fought over. Weights, locks, jitter, rounding and spillover are unchanged.
 
-This is where zero-strength units pay for themselves. A battalion reduced to nothing keeps its designation, its equipment and its brigade, and comes back as itself when replacements arrive — rather than being deleted and retyped as a stranger.
+This is where zero-strength units pay for themselves. A battalion reduced to nothing keeps its designation, its weapon assignment and its brigade, and comes back as itself when replacements arrive — rather than being deleted and retyped as a stranger.
+
+Reinforcements do **not** re-arm the men they bring. A battalion filled from 200 to 1,000 still holds the 200 rifles it had, and is now under-armed by 800; arming it is a deliberate draw on the Weapons Stockpile ([mvp-stockpile.md](mvp-stockpile.md) §5), never something this tool does silently, and an empty stockpile never blocks the reinforcement itself.
 
 ## 6. The Flow
 A stepped dialog over the tree, built on the existing `Dialog` shell. Steps rather than one wide table, because the preview is a per-unit grid and [mvp.md](mvp.md) §7 requires this to work on a phone.
@@ -110,7 +112,7 @@ The properties the allocation core is tested against:
 - **Deciding casualties** — the app never rolls or computes how many were lost, only where they fell.
 - **Navy** — army only, as everywhere else in the MVP.
 - **Prisoners, wounded, stragglers** — a loss is a loss; the app does not model recovery.
-- **Equipment loss** — a unit's `equipment` string is untouched, even when the unit is wiped out.
+- **Salvage** — weapons are lost with the men and never recovered from the field. Once the Weapons Stockpile lands, a unit's weapon holding is clamped to its new strength inside the same transaction, and the difference is destroyed rather than returned to the pile; see [mvp-stockpile.md](mvp-stockpile.md) §2.3. Weapons taken from a *beaten enemy* are an acquisition the player enters by hand, not something this tool infers from a casualty figure.
 
 ## 10. Open Questions
 - Should losses be applicable to a saved design, or only to the live OOB? Designs are inert planning artifacts, which argues for live-only, but "what if this division had fought" is a plausible use.

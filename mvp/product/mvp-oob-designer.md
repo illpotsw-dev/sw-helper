@@ -26,7 +26,9 @@ The editor presents the tree with formations as nodes and units as leaves, each 
 
 **Formations** — add (name + echelon + parent), rename, change echelon, delete. Deleting a formation that has children prompts for which of two things to do: promote the children up to the deleted formation's parent, or delete the subtree entirely. Never silently orphan.
 
-**Units** — add (designation + type from the nation's `land-units.yml` + strength + equipment), edit inline, delete. Because strength and equipment live on the instance ([mvp-army-oob.md](mvp-army-oob.md) §2), editing a unit never touches the catalog and never affects its sibling units.
+**Units** — add (designation + type from the nation's `land-units.yml` + strength + weapon from the nation's `weapons.yml`), edit inline, delete. Because strength and arming live on the instance ([mvp-army-oob.md](mvp-army-oob.md) §2), editing a unit never touches either catalog and never affects its sibling units.
+
+Arming a unit here moves real weapons: a unit added to the **live** OOB draws its holding from the Weapons Stockpile, and a unit deleted returns it. Weapons cannot be conjured by typing, so the unit form offers only what is in stock and a unit may be added unarmed. On a saved design the same edits are intentions rather than movements, reconciled at promote-to-live — see [mvp-stockpile.md](mvp-stockpile.md) §4.
 
 A unit can attach to a formation at any tier, not just the bottom one — the Army Reserve batteries hanging directly off Clan McGreggor's Army (XXXX) are the reference case.
 
@@ -62,7 +64,7 @@ Checked continuously while editing and enforced at import and promote-to-live:
 - every unit's `unit_type` matches a catalog entry exactly — no normalization, no case-folding, no fuzzy matching;
 - men/guns exclusivity — artillery and support_weapons carry guns and 0 men, all other types the reverse.
 
-A unit at zero in both measures is a **paper unit** — on the books with nobody in it — and is legal: it is how a battalion wiped out in battle keeps its designation, equipment and place in the tree, and how a design sketches formations a player means to raise. It is surfaced as a notice on its row, not an error, and does not block promote-to-live. (Recording *both* men and guns remains an error.) See [mvp-battle-losses.md](mvp-battle-losses.md) §2.1.
+A unit at zero in both measures is a **paper unit** — on the books with nobody in it — and is legal: it is how a battalion wiped out in battle keeps its designation, its weapon assignment and its place in the tree — though not the weapons themselves ([mvp-stockpile.md](mvp-stockpile.md) §2.3) — and how a design sketches formations a player means to raise. It is surfaced as a notice on its row, not an error, and does not block promote-to-live. (Recording *both* men and guns remains an error.) See [mvp-battle-losses.md](mvp-battle-losses.md) §2.1.
 
 Multiple roots are legal, not an error — Clan McGreggor's field army and Portree garrison are separate trees.
 

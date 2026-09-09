@@ -3,12 +3,12 @@
 Parent doc: [mvp.md](mvp.md), Section 5 (Key Features → MVP).
 
 ## 1. Overview
-The Turn Budget is the per-turn income/expense/upkeep report a player posts to the admin. Upkeep is pulled automatically from the current Order of Battle ([mvp-army-oob.md](mvp-army-oob.md)), Navy ([mvp-navy-oob.md](mvp-navy-oob.md)), and Equipment Stockpile rather than re-entered; the player only adds this turn's income and expense line items, and the app computes the net.
+The Turn Budget is the per-turn income/expense/upkeep report a player posts to the admin. Upkeep is pulled automatically from the current Order of Battle ([mvp-army-oob.md](mvp-army-oob.md)) and Navy ([mvp-navy-oob.md](mvp-navy-oob.md)) rather than re-entered; the player only adds this turn's income and expense line items, and the app computes the net. The Weapons Stockpile contributes nothing — stockpiled weapons carry no upkeep, since upkeep is charged on units through the Order of Battle and charging it again would be double-counting ([mvp-stockpile.md](mvp-stockpile.md) §3).
 
 ## 2. Data Model
 - Income line items (source, amount)
 - Expense line items (description, amount)
-- Upkeep total (auto-computed: sum of Order of Battle + Navy + Equipment Stockpile upkeep)
+- Upkeep total (auto-computed: sum of Order of Battle + Navy upkeep; the Weapons Stockpile carries none)
 - Net (income − expenses − upkeep)
 - Running treasury balance across turns
 
