@@ -5,6 +5,7 @@ import { UnitForm, type UnitValues } from './UnitForm.tsx'
 import { DeleteFormationPrompt } from './DeleteFormationPrompt.tsx'
 import { BattleDialog, type StrengthChange } from './BattleDialog.tsx'
 import { RearmDialog } from './RearmDialog.tsx'
+import { StockpileDialog, type StockChange } from './StockpileDialog.tsx'
 import { ExportDialog } from './ExportDialog.tsx'
 import { exportOobYaml } from '../oob/export.ts'
 import { exportStockpileMarkdown } from '../oob/stockpile-report.ts'
@@ -18,6 +19,7 @@ import {
   addFormation,
   addUnit,
   applyDrop,
+  adjustStock,
   applyMovement,
   applyStrengthChanges,
   deleteFormation,
@@ -60,6 +62,7 @@ type Editing =
   | { kind: 'arm'; movement: Movement; unitIds?: ReadonlySet<number> }
   | { kind: 'export' }
   | { kind: 'stockpile' }
+  | { kind: 'acquire' }
   | null
 
 export function OobDesigner({
@@ -348,6 +351,13 @@ export function OobDesigner({
         <button
           type="button"
           className={buttonStyles.quiet}
+          onClick={() => setEditing({ kind: 'acquire' })}
+        >
+          Acquire / dispose…
+        </button>
+        <button
+          type="button"
+          className={buttonStyles.quiet}
           onClick={() => setEditing({ kind: 'stockpile' })}
         >
           Stockpile report…
@@ -486,6 +496,15 @@ export function OobDesigner({
           summary={`${data.formations.length} formation${
             data.formations.length === 1 ? '' : 's'
           } · ${data.units.length} unit${data.units.length === 1 ? '' : 's'}`}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {editing?.kind === 'acquire' && (
+        <StockpileDialog
+          weapons={data.weapons}
+          stock={data.stock}
+          onApply={(change: StockChange) => void apply(() => adjustStock(change))}
           onClose={() => setEditing(null)}
         />
       )}

@@ -589,34 +589,34 @@ export async function applyMovement(input: {
 
 /**
  * A weapon crossing the nation's boundary: bought, captured or given, and the
- * reverse. The only movements the app cannot derive, and the only ones besides
- * a combat loss that change what the nation owns.
+ * reverse. The only movements the app cannot derive, and — with a combat loss
+ * — the only ones that change what the nation owns rather than where it is.
+ *
+ * `create` adds a pattern the nation has never held, in the same transaction
+ * and so the same undo entry as the quantity. A capture is often the first
+ * time a nation has seen a weapon at all, and sending the player to a catalog
+ * screen mid-turn would be the app getting in the way (mvp-stockpile.md §6).
  */
 export async function adjustStock(input: {
   weapon: string
   /** Positive acquires, negative disposes. */
   delta: number
   label: string
+  create?: Weapon
 }): Promise<void> {
   await transaction(
     [
+      ...(input.create
+        ? catalogStatements([input.create], [{ weapon: input.create.name, quantity: 0 }])
+        : []),
       input.delta >= 0
         ? creditStock(input.weapon, input.delta)
-        : debitStock(input.weapon, -input.delta),
+        : // A disposal past what is in store fails the non-negative CHECK and
+          // rolls the whole thing back, rather than selling rifles that are in
+          // someone's hands.
+          debitStock(input.weapon, -input.delta),
     ],
     input.label,
-  )
-}
-
-/**
- * Adds a pattern the nation has never held. A capture is often the first time
- * it has seen one at all, so this exists to be called mid-flow rather than
- * sending the player to a catalog screen — see mvp-stockpile.md §6.
- */
-export async function addWeapon(weapon: Weapon, quantity = 0): Promise<void> {
-  await transaction(
-    catalogStatements([weapon], [{ weapon: weapon.name, quantity }]),
-    `Add ${weapon.name} to the weapon catalog`,
   )
 }
 

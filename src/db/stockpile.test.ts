@@ -519,3 +519,66 @@ test('a movement that would overdraw the pile commits nothing at all', () => {
     0,
   )
 })
+
+test('acquiring a pattern the nation has never held creates and stocks it at once', () => {
+  const { run, exec, stockOf } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+
+  // A capture is often the first time a nation has seen a weapon at all, so
+  // the catalog entry and the quantity land in one transaction.
+  run(
+    [
+      ...catalogStatements(
+        [
+          {
+            name: 'Rossenheim Carbine (.68 Caliber)',
+            class: 'small_arm',
+            origin: 'Rossenheim',
+            description: '',
+          },
+        ],
+        [],
+      ),
+      creditStock('Rossenheim Carbine (.68 Caliber)', 320),
+    ],
+    'Captured 320 Rossenheim Carbine (.68 Caliber)',
+  )
+
+  assert.equal(stockOf('Rossenheim Carbine (.68 Caliber)'), 320)
+  assert.equal(Number(exec('SELECT count(*) AS n FROM weapons')[0].n), 14)
+
+  // One entry, so undoing the capture takes the pattern with it rather than
+  // leaving an orphan in the catalog.
+  assert.equal(undo(exec), 'Captured 320 Rossenheim Carbine (.68 Caliber)')
+  assert.equal(Number(exec('SELECT count(*) AS n FROM weapons')[0].n), 13)
+  assert.equal(Number(exec('SELECT count(*) AS n FROM weapon_stock')[0].n), 13)
+})
+
+test('disposing of more than is spare is refused', () => {
+  const { run, stockOf } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+
+  // 615 Wardens are in store; the other 20,215 are in someone's hands and are
+  // not the nation's to sell out of the pile.
+  assert.throws(
+    () =>
+      run(
+        [debitStock('Warden Rifle (.45 Caliber)', 700)],
+        'Sold 700 Warden Rifle (.45 Caliber)',
+      ),
+    /CHECK constraint failed/,
+  )
+  assert.equal(stockOf('Warden Rifle (.45 Caliber)'), 615)
+})
+
+test('acquiring and disposing are the only movements that change what is owned', () => {
+  const { run, ledger } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+  const before = ledger('small_arm')
+
+  run([creditStock('Warden Rifle (.45 Caliber)', 500)], 'Bought 500 Wardens')
+  assert.equal(ledger('small_arm').owned, before.owned + 500)
+
+  run([debitStock('Warden Rifle (.45 Caliber)', 200)], 'Sold 200 Wardens')
+  assert.equal(ledger('small_arm').owned, before.owned + 300)
+})
