@@ -165,8 +165,7 @@ test('a wiped-out unit stays in the tree as a paper unit', () => {
   assert.equal(Number(row.formation_id), 2)
 
   // It keeps the weapon assignment, so when replacements arrive the app
-  // already knows what to ask the stockpile for. Whether the rifles themselves
-  // survive the battle is part 8's question.
+  // already knows what to ask the stockpile for.
   const [holding] = exec('SELECT * FROM oob_unit_weapons WHERE unit_id = 1')
   assert.equal(holding.weapon, 'Warden Rifle')
 })
@@ -230,4 +229,100 @@ test('a write that would record both measures is refused whole', () => {
   )
   // The transaction rolled back, so the first unit's write went with it.
   assert.deepEqual(strengths(), before)
+})
+
+// --- Weapons go with the men, mvp-stockpile.md §2.3 ----------------------
+
+const holdingOf = (exec: Exec, unitId: number) => {
+  const row = exec('SELECT * FROM oob_unit_weapons WHERE unit_id = ?', [unitId])[0]
+  return row
+    ? { weapon: String(row.weapon), quantity: Number(row.quantity) }
+    : null
+}
+
+test('a fully armed battalion loses its rifles with its men', () => {
+  const { exec, run } = open()
+  // Unit 2 is fully armed at 800 and comes out of the battle at 600.
+  run(battle, 'Losses — Battle of Portree')
+
+  assert.deepEqual(holdingOf(exec, 2), {
+    weapon: 'Warden Rifle',
+    quantity: 600,
+  })
+})
+
+test('a wiped-out battalion keeps the assignment and none of the weapons', () => {
+  const { exec, run } = open()
+  run(battle, 'Losses — Battle of Portree')
+
+  // It still reads as a Warden Rifle battalion, so when replacements arrive
+  // the app already knows what to ask the stockpile for. The rifles are gone.
+  assert.deepEqual(holdingOf(exec, 1), {
+    weapon: 'Warden Rifle',
+    quantity: 0,
+  })
+})
+
+test('the weapons are destroyed, not returned to the stockpile', () => {
+  const { exec, run } = open()
+  const before = Number(
+    exec(`SELECT quantity AS n FROM weapon_stock WHERE weapon = 'Warden Rifle'`)[0]
+      .n,
+  )
+  run(battle, 'Losses — Battle of Portree')
+
+  // Casualties' weapons are never salvaged. Weapons taken from an enemy are an
+  // acquisition the player enters by hand.
+  assert.equal(
+    Number(
+      exec(`SELECT quantity AS n FROM weapon_stock WHERE weapon = 'Warden Rifle'`)[0]
+        .n,
+    ),
+    before,
+  )
+})
+
+test('an under-armed battalion loses no weapons it did not have', () => {
+  const { exec, run } = open()
+  // 1,000 men on 80 rifles, then 400 casualties. Its holding is already below
+  // the new strength, so nothing is clamped and nothing is destroyed.
+  run(
+    [
+      {
+        sql: 'UPDATE oob_unit_weapons SET quantity = 80 WHERE unit_id = 1',
+      },
+    ],
+    'Under-arm the battalion',
+  )
+  run(applyStrengthStatements([{ unitId: 1, men: 600, weapons: 0 }]), 'Losses')
+
+  assert.equal(holdingOf(exec, 1)?.quantity, 80)
+})
+
+test('reinforcements bring men and no rifles', () => {
+  const { exec, run } = open()
+  run(applyStrengthStatements([{ unitId: 2, men: 0, weapons: 0 }]), 'Losses')
+  assert.equal(holdingOf(exec, 2)?.quantity, 0)
+
+  run(
+    applyStrengthStatements([{ unitId: 2, men: 1000, weapons: 0 }]),
+    'Reinforcements',
+  )
+  // Filled to 1,000 and holding nothing: under-armed by 1,000, which arming is
+  // a separate and deliberate draw on the stockpile.
+  assert.equal(Number(exec('SELECT men FROM oob_units WHERE id = 2')[0].men), 1000)
+  assert.equal(holdingOf(exec, 2)?.quantity, 0)
+})
+
+test('the clamp is inside the battle, so it is one undo entry', () => {
+  const { exec, run, step } = open()
+  run(battle, 'Losses — Battle of Portree')
+
+  step('undo')
+  assert.equal(holdingOf(exec, 1)?.quantity, 1000)
+  assert.equal(holdingOf(exec, 2)?.quantity, 800)
+
+  step('redo')
+  assert.equal(holdingOf(exec, 1)?.quantity, 0)
+  assert.equal(holdingOf(exec, 2)?.quantity, 600)
 })

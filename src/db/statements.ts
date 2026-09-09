@@ -275,22 +275,42 @@ export const moveUnitsAndOrderStatements = (input: {
 ]
 
 /**
- * Writes a battle's outcome onto the units that fought. One UPDATE per
- * changed unit, run in a single transaction, so the whole battle lands as one
- * undo entry and a partial write is impossible.
+ * Writes a battle's outcome onto the units that fought. One UPDATE per changed
+ * unit, run in a single transaction, so the whole battle lands as one undo
+ * entry and a partial write is impossible.
  *
  * Nothing is deleted: a unit taken to zero stays in the tree as a paper unit,
- * keeping its designation, equipment and place. Removing it is a separate and
- * separately-undoable decision, not one the calculator makes on the player's
- * behalf.
+ * keeping its designation, its weapon assignment and its place. Removing it is
+ * a separate and separately-undoable decision, not one the calculator makes on
+ * the player's behalf.
+ *
+ * Weapons are lost with the men. A unit's holding is clamped to its new
+ * strength and the difference is destroyed — it does not come back to the
+ * stockpile, so this is the one movement besides an explicit disposal that
+ * changes what the nation owns. The clamp is mvp-stockpile.md §2.2 enforcing
+ * itself rather than a new decision for the player, and it runs inside the
+ * same transaction as the strengths, so no intermediate state has a battalion
+ * at zero men holding a thousand rifles.
+ *
+ * Reinforcements are the mirror and deliberately do not balance: MIN() leaves
+ * a filled battalion holding what it had, under-armed by the difference.
+ * Arming it is a separate, deliberate draw on a pile that may not have the
+ * rifles, and one that never blocks the reinforcement itself.
  */
 export const applyStrengthStatements = (
   changes: readonly { unitId: number; men: number; weapons: number }[],
 ): Statement[] =>
-  changes.map((change) => ({
-    sql: 'UPDATE oob_units SET men = ?, weapons = ? WHERE id = ?',
-    params: [change.men, change.weapons, change.unitId],
-  }))
+  changes.flatMap((change) => [
+    {
+      sql: 'UPDATE oob_units SET men = ?, weapons = ? WHERE id = ?',
+      params: [change.men, change.weapons, change.unitId],
+    },
+    {
+      sql: `UPDATE oob_unit_weapons SET quantity = MIN(quantity, ?)
+            WHERE unit_id = ?`,
+      params: [change.men + change.weapons, change.unitId],
+    },
+  ])
 
 export type DeleteMode = 'promote' | 'subtree'
 

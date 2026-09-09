@@ -27,6 +27,15 @@ const newSeed = () => Math.floor(Math.random() * 0x7fffffff)
 
 const digits = (value: string) => value.replace(/[^0-9]/g, '')
 
+/**
+ * Weapons lost with the men. A unit's holding is clamped to its new strength
+ * and the difference is destroyed rather than returned to the stockpile — see
+ * mvp-stockpile.md §2.3. A unit already under-armed loses none, since its
+ * holding is below the new strength already.
+ */
+const destroyed = (unit: Unit, after: number | undefined): number =>
+  after === undefined ? 0 : Math.max(0, unit.weaponCount - after)
+
 const WORDS = {
   losses: {
     verb: 'lost',
@@ -505,6 +514,14 @@ export function BattleDialog({
                     {result?.wipedOut && (
                       <span className="ml-1 rounded bg-red-100 px-1 py-0.5 text-[0.6rem] font-medium text-red-700">
                         wiped out
+                      </span>
+                    )}
+                    {destroyed(row.unit, result?.after) > 0 && (
+                      <span
+                        title={`${row.unit.weapon}: lost with the men, and not recovered`}
+                        className="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[0.6rem] font-medium text-amber-700"
+                      >
+                        −{count(destroyed(row.unit, result?.after))} weapons
                       </span>
                     )}
                   </span>
