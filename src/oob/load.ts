@@ -1,22 +1,31 @@
 import {
   hasNation,
   listEchelons,
+  listStock,
   listUnitTypes,
+  listWeapons,
   loadDesign,
   getLiveDesign,
   seedNation,
 } from '../db/oob.ts'
 import { clearHistory } from '../db/client.ts'
-import { parseOob, parseUnitTypes } from './yaml.ts'
+import {
+  parseOob,
+  parseStockpile,
+  parseUnitTypes,
+  parseWeapons,
+} from './yaml.ts'
 import { buildTree, type Tree } from './tree.ts'
-import { validate } from './validate.ts'
+import { errorsOnly, validate } from './validate.ts'
 import type {
   Design,
   Echelon,
   Formation,
   Problem,
+  StockEntry,
   Unit,
   UnitType,
+  Weapon,
 } from './types.ts'
 import type { PredefinedNation } from '../nations/clan-mcgreggor.ts'
 
@@ -24,6 +33,9 @@ export type Loaded = {
   design: Design
   echelons: Echelon[]
   unitTypes: UnitType[]
+  weapons: Weapon[]
+  /** One entry per catalog weapon, including the ones at zero. */
+  stock: StockEntry[]
   tree: Tree
   /** Flat rows alongside the tree, for checks that walk parent links. */
   formations: Formation[]
@@ -31,14 +43,59 @@ export type Loaded = {
   problems: Problem[]
 }
 
-/** Writes a pre-defined nation into an empty database. */
+/**
+ * Everything a nation's files say, before any of it is written. Kept apart
+ * from seedPredefined so the same parse can be checked, previewed and reported
+ * on without a database in the way.
+ */
+export function parseNation(nation: PredefinedNation) {
+  const types = parseUnitTypes(nation.landUnits)
+  const catalog = parseWeapons(nation.weapons)
+  const pile = parseStockpile(nation.stockpile, catalog.weapons)
+  const oob = parseOob(nation.armyOob)
+
+  return {
+    unitTypes: types.unitTypes,
+    weapons: catalog.weapons,
+    stock: pile.stock,
+    formations: oob.formations,
+    units: oob.units,
+    problems: [
+      ...types.problems,
+      ...catalog.problems,
+      ...pile.problems,
+      ...oob.problems,
+    ],
+  }
+}
+
+/**
+ * Writes a pre-defined nation into an empty database.
+ *
+ * A file that names a weapon or a unit type its catalog does not have fails
+ * the whole seed and reports every unresolved name at once, per
+ * mvp-stockpile.md §7 — a nation half-written is worse than one not written,
+ * since the missing half is exactly the part nothing else can be checked
+ * against.
+ */
 export async function seedPredefined(nation: PredefinedNation): Promise<void> {
-  const { unitTypes } = parseUnitTypes(nation.landUnits)
-  const { formations, units } = parseOob(nation.armyOob)
+  const { unitTypes, weapons, stock, formations, units, problems } =
+    parseNation(nation)
+
+  const errors = errorsOnly(problems)
+  if (errors.length > 0) {
+    throw new Error(
+      [`${nation.name}'s files could not be read:`, ...errors.map((p) => p.message)].join(
+        '\n',
+      ),
+    )
+  }
 
   await seedNation({
     label: `Load ${nation.name}`,
     unitTypes,
+    weapons,
+    stock,
     design: {
       name: 'Order of Battle',
       note: `Seeded from ${nation.name}'s repo files.`,
@@ -67,9 +124,11 @@ export async function loadLiveOob(
   const design = await getLiveDesign()
   if (!design) return null
 
-  const [echelons, unitTypes, contents] = await Promise.all([
+  const [echelons, unitTypes, weapons, stock, contents] = await Promise.all([
     listEchelons(),
     listUnitTypes(),
+    listWeapons(),
+    listStock(),
     loadDesign(design.id),
   ])
 
@@ -77,6 +136,8 @@ export async function loadLiveOob(
     design,
     echelons,
     unitTypes,
+    weapons,
+    stock,
     tree: buildTree(contents.formations, contents.units, unitTypes),
     formations: contents.formations,
     units: contents.units,

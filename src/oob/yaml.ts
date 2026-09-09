@@ -3,9 +3,12 @@ import type {
   EchelonSymbol,
   Formation,
   Problem,
+  StockEntry,
   Unit,
   UnitCategory,
   UnitType,
+  Weapon,
+  WeaponClass,
 } from './types.ts'
 
 const str = (value: unknown, fallback = ''): string =>
@@ -70,6 +73,119 @@ export function parseUnitTypes(text: string): ParsedUnitTypes {
   }
 
   return { unitTypes, problems }
+}
+
+export type ParsedWeapons = {
+  weapons: Weapon[]
+  problems: Problem[]
+}
+
+/**
+ * Reads a nation's weapons.yml. Like parseUnitTypes, the class is carried
+ * through unchecked so validate() reports an unknown one on the same footing
+ * as every other problem rather than throwing part way down the file.
+ */
+export function parseWeapons(text: string): ParsedWeapons {
+  const doc: unknown = parse(text)
+  const problems: Problem[] = []
+  const weapons: Weapon[] = []
+  const seen = new Set<string>()
+
+  for (const entry of asRecords(doc, 'weapons')) {
+    const name = str(entry.name)
+    if (!name) {
+      problems.push({
+        rule: 'weapon-missing-name',
+        severity: 'error',
+        message: 'A weapons entry has no name.',
+      })
+      continue
+    }
+    if (seen.has(name)) {
+      problems.push({
+        rule: 'duplicate-weapon',
+        severity: 'error',
+        message: `The catalog defines "${name}" more than once.`,
+      })
+      continue
+    }
+    seen.add(name)
+
+    weapons.push({
+      name,
+      class: str(entry.class) as WeaponClass,
+      origin: str(entry.origin),
+      description: str(entry.description),
+    })
+  }
+
+  return { weapons, problems }
+}
+
+export type ParsedStockpile = {
+  stock: StockEntry[]
+  problems: Problem[]
+}
+
+/**
+ * Reads a nation's stockpile.yml against its catalog. A weapon the catalog
+ * does not have fails rather than being created: the pile is the other half of
+ * a ledger, and a quantity of something undefined has nothing to balance
+ * against. A pattern absent from the file simply has none in stock, which is
+ * why nothing is reported for one that is missing.
+ */
+export function parseStockpile(
+  text: string,
+  weapons: readonly Weapon[],
+): ParsedStockpile {
+  const doc: unknown = parse(text)
+  const problems: Problem[] = []
+  const stock: StockEntry[] = []
+  const known = new Set(weapons.map((w) => w.name))
+  const seen = new Set<string>()
+
+  for (const entry of asRecords(doc, 'stockpile')) {
+    const weapon = str(entry.weapon)
+    if (!weapon) {
+      problems.push({
+        rule: 'stock-missing-weapon',
+        severity: 'error',
+        message: 'A stockpile entry names no weapon.',
+      })
+      continue
+    }
+    if (!known.has(weapon)) {
+      problems.push({
+        rule: 'unknown-stock-weapon',
+        severity: 'error',
+        message: `The stockpile holds "${weapon}", which is not in the weapon catalog.`,
+      })
+      continue
+    }
+    if (seen.has(weapon)) {
+      problems.push({
+        rule: 'duplicate-stock-weapon',
+        severity: 'error',
+        message: `The stockpile lists "${weapon}" more than once.`,
+      })
+      continue
+    }
+    seen.add(weapon)
+
+    const quantity = num(entry.quantity)
+    if (quantity < 0) {
+      problems.push({
+        rule: 'negative-stock',
+        severity: 'error',
+        message: `The stockpile holds ${quantity} of "${weapon}"; a quantity cannot be negative.`,
+      })
+      continue
+    }
+
+    stock.push({ weapon, quantity: Math.trunc(quantity) })
+  }
+
+  return { stock, problems }
 }
 
 export type ParsedOob = {

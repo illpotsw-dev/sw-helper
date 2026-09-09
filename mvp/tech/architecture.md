@@ -21,9 +21,10 @@ Browser
 ├── Formatters (pure functions: tracker data → Discord markdown string)
 ├── YAML import parser (pasted text → tracker rows)
 └── SQLite (WASM + OPFS)
-    ├── tables: nation_profile, echelons, unit_types,
+    ├── tables: nation_profile, echelons, unit_types, weapons,
     │           oob_designs, oob_formations, oob_units,
-    │           navy_ships, stockpile_items, budget_entries
+    │           oob_unit_weapons, weapon_stock,
+    │           navy_ships, budget_entries
     └── undo/redo: undo_log, undo_actions + per-table triggers
 ```
 No network calls at runtime beyond loading the static app itself.
@@ -33,14 +34,20 @@ One SQLite DB per browser, single nation:
 - **nation_profile** — name, history/politics/goals text (flavor only, not numeric).
 - **echelons** — the eight NATO tiers. Symbol and level are fixed; the name is renameable per nation. Seeded with defaults on first open.
 - **unit_types** — the nation's unit catalog, mirroring `land-units.yml`. Keyed by name, because units reference their type by name.
+- **weapons** — the nation's weapon catalog, mirroring `weapons.yml`: name, class (`small_arm` or `gun`), origin, description. Keyed by name for the same reason `unit_types` is.
 - **oob_designs** — the live OOB plus any saved designs. A partial unique index enforces that exactly one row is live.
 - **oob_formations** — the formation tree: design, parent (NULL for an independent top-level formation), echelon, name, sort order.
-- **oob_units** — raised units: formation, unit type, designation, current men/weapons, equipment, sort order.
+- **oob_units** — raised units: formation, unit type, designation, current men/weapons, sort order.
+- **oob_unit_weapons** — what a unit carries and how many: unit, weapon, quantity. A row per holding rather than a column on `oob_units`, so mixed arming is a later UI change rather than a schema migration ([mvp-stockpile.md](../product/mvp-stockpile.md) §2.2). The MVP limit of one holding per unit is enforced in application code, since a schema that forbade a second row would reject a file rather than explain it.
+- **weapon_stock** — weapons the nation owns that nobody is carrying: one quantity per catalog weapon, at zero when none are spare. Together with `oob_unit_weapons` over the *live* design it is one closed ledger — `owned = stock + issued` — so every movement debits one side and credits the other inside a single transaction.
 - **navy_ships** — class/model, count, upkeep per ship. Still flat; navy hierarchy is unresolved in [mvp-navy-oob.md](../product/mvp-navy-oob.md).
-- **stockpile_items** — item type, quantity.
 - **budget_entries** — per-turn income/expense line items (source or description, amount); upkeep and net are computed, not stored as input.
 
-`PRAGMA foreign_keys = ON` is issued on every connection — SQLite ignores foreign keys otherwise, and the OOB import's strictness depends on them. The database enforces what it can: a unit's `unit_type` must resolve to a catalog row exactly (import fails otherwise), a formation's echelon must be a known symbol, a unit carries men or guns but never both — it may sit at zero in both, which is a paper unit ([mvp-battle-losses.md](../product/mvp-battle-losses.md) §2.1) — and a catalog entry cannot be deleted while units still reference it. Two rules stay in application code because a `CHECK` cannot read another row: that a formation's echelon sits strictly below its parent's, and that a unit's men/guns choice matches its type's.
+`PRAGMA foreign_keys = ON` is issued on every connection — SQLite ignores foreign keys otherwise, and the OOB import's strictness depends on them. The database enforces what it can: a unit's `unit_type` and a holding's `weapon` must resolve to a catalog row exactly (import fails otherwise), a formation's echelon must be a known symbol, a unit carries men or guns but never both — it may sit at zero in both, which is a paper unit ([mvp-battle-losses.md](../product/mvp-battle-losses.md) §2.1) — a stock or holding quantity is never negative, and a catalog entry cannot be deleted while anything still references it.
+
+The non-negative `CHECK` on `weapon_stock` is what makes "stock never goes negative, at any point, including mid-operation" ([mvp-stockpile.md](../product/mvp-stockpile.md) §9) a property of the database rather than of a function: a transaction that would overdraw the pile fails and rolls back whole. Since SQLite evaluates a `CHECK` per statement rather than at `COMMIT`, a movement that both returns and draws must write its returns first.
+
+Rules that stay in application code because a `CHECK` cannot read another row: that a formation's echelon sits strictly below its parent's, that a unit's men/guns choice matches its type's, that a weapon's class matches the unit's measure, that a holding does not exceed its unit's strength, and the one-holding-per-unit limit.
 
 Schema statements run as `CREATE TABLE IF NOT EXISTS` on every open, with no migration versioning — changing a table's shape does not migrate an existing browser database. Acceptable while the app is pre-release and carries no real data; a migration story is needed before it does.
 
@@ -65,7 +72,7 @@ History is capped at the most recent 100 actions.
 - **First-time setup:** player pastes filled-in YAML → parser validates/maps it to the table rows above → written to SQLite → dashboard reads from SQLite.
 - **Edit a tracker:** UI writes directly to the relevant table; no intermediate draft state needed since there's no server round-trip.
 - **Generate a report:** UI reads current tracker rows → formatter produces Discord markdown → shown in Live Preview → Copy-to-Clipboard.
-- **Turn Budget:** formatter/query sums upkeep at render time rather than storing a duplicated total — army upkeep from the *live* design's oob_units joined to unit_types, plus navy_ships and stockpile_items. Saved (non-live) designs are excluded; they are planning artifacts and cost the nation nothing.
+- **Turn Budget:** formatter/query sums upkeep at render time rather than storing a duplicated total — army upkeep from the *live* design's oob_units joined to unit_types, plus navy_ships. Saved (non-live) designs are excluded; they are planning artifacts and cost the nation nothing. The weapons stockpile contributes nothing — stockpiled weapons carry no upkeep, and upkeep is already charged on units through the OOB ([mvp-stockpile.md](../product/mvp-stockpile.md) §3).
 
 ## 7. Constraints & Risks
 - OPFS support varies on mobile browsers — must be verified on target devices (app is mobile-friendly per requirements).

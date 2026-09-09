@@ -1,6 +1,7 @@
 import { query, transaction } from './client.ts'
 import {
   applyStrengthStatements,
+  catalogStatements,
   deleteFormationStatements,
   designStatements,
   insertFormation,
@@ -22,9 +23,12 @@ import type {
   Echelon,
   EchelonSymbol,
   Formation,
+  StockEntry,
   Unit,
   UnitCategory,
   UnitType,
+  Weapon,
+  WeaponClass,
 } from '../oob/types.ts'
 
 type Row = Record<string, unknown>
@@ -47,6 +51,18 @@ const toUnitType = (row: Row): UnitType => ({
   buildTimeTurns: num(row.build_time_turns),
   men: num(row.men),
   weapons: num(row.weapons),
+})
+
+const toWeapon = (row: Row): Weapon => ({
+  name: str(row.name),
+  class: str(row.class) as WeaponClass,
+  origin: str(row.origin),
+  description: str(row.description),
+})
+
+const toStockEntry = (row: Row): StockEntry => ({
+  weapon: str(row.weapon),
+  quantity: num(row.quantity),
 })
 
 const toDesign = (row: Row): Design => ({
@@ -103,6 +119,23 @@ export async function replaceUnitTypes(types: readonly UnitType[]): Promise<void
     [{ sql: 'DELETE FROM unit_types' }, ...types.map(insertUnitType)],
     'Replace unit type catalog',
   )
+}
+
+export async function listWeapons(): Promise<Weapon[]> {
+  const rows = await query('SELECT * FROM weapons ORDER BY name')
+  return rows.map(toWeapon)
+}
+
+/**
+ * What is in the pile, one row per catalog weapon including the empty ones —
+ * a pattern the nation owns none of is still worth showing, so the player can
+ * see the arsenal has none rather than wonder where it went.
+ */
+export async function listStock(): Promise<StockEntry[]> {
+  const rows = await query(
+    'SELECT weapon, quantity FROM weapon_stock ORDER BY weapon',
+  )
+  return rows.map(toStockEntry)
 }
 
 export async function listDesigns(): Promise<Design[]> {
@@ -169,19 +202,23 @@ export async function createDesign(design: NewDesign): Promise<number> {
 }
 
 /**
- * Loads a nation's catalog and starting order of battle together, as one
- * transaction and one undo entry — a half-seeded nation whose units reference
- * types that were never written would fail the exact-match rule on every row.
+ * Loads a nation's two catalogs, its opening stockpile and its starting order
+ * of battle together, as one transaction and one undo entry — a half-seeded
+ * nation whose units reference types or weapons that were never written would
+ * fail the exact-match rule on every row.
  */
 export async function seedNation(input: {
   label: string
   unitTypes: readonly UnitType[]
+  weapons: readonly Weapon[]
+  stock: readonly StockEntry[]
   design: NewDesign
 }): Promise<number> {
   const [designId, formationBase, unitBase] = await nextIds()
   await transaction(
     [
       ...input.unitTypes.map(insertUnitType),
+      ...catalogStatements(input.weapons, input.stock),
       ...designStatements(designId, formationBase, unitBase, input.design),
     ],
     input.label,

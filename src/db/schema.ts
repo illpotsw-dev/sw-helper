@@ -45,6 +45,31 @@ export const SCHEMA_STATEMENTS = [
     )
   )`,
 
+  // The nation's weapon catalog, mirroring weapons.yml. Keyed by name and
+  // referenced by name for the same reason unit_types is: the exact-match rule
+  // of mvp-stockpile.md §2.1 is then a foreign key rather than a convention,
+  // and a near miss fails loudly instead of minting a second arsenal.
+  `CREATE TABLE IF NOT EXISTS weapons (
+    name TEXT PRIMARY KEY,
+    class TEXT NOT NULL CHECK (class IN ('small_arm', 'gun')),
+    origin TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT ''
+  )`,
+
+  // What is in the pile: one quantity per catalog weapon, and nothing else.
+  // A row exists for every weapon, at zero when none are spare, so a movement
+  // is always an UPDATE and never has to decide whether to insert.
+  //
+  // The CHECK is the guarantee from mvp-stockpile.md §9 that stock is never
+  // negative "at any point, including mid-operation" — SQLite evaluates it per
+  // statement, so a transaction that would overdraw fails and rolls back
+  // whole. Movements must therefore credit returns before debiting draws.
+  `CREATE TABLE IF NOT EXISTS weapon_stock (
+    weapon TEXT PRIMARY KEY
+      REFERENCES weapons (name) ON UPDATE CASCADE ON DELETE RESTRICT,
+    quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0)
+  )`,
+
   // The live OOB plus any saved designs. Exactly one row may be live.
   `CREATE TABLE IF NOT EXISTS oob_designs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,16 +120,33 @@ export const SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS oob_units_formation
     ON oob_units (formation_id)`,
 
+  // What a unit is actually carrying, and how many of them. A row per holding
+  // rather than a column on oob_units so that mixed arming — two patterns in
+  // one battalion — is a UI change later and not a schema migration, per
+  // mvp-stockpile.md §2.2. The MVP limit of one holding per unit is enforced
+  // in the app: a schema that forbade a second row would reject a file rather
+  // than explain what is wrong with it.
+  //
+  // The quantity is not decorative. It is the number of physical weapons that
+  // left the pile, and the other half of the ledger:
+  //
+  //     owned(w) = weapon_stock(w) + sum of holdings across the LIVE design
+  //
+  // Holdings on a saved design are intentions, not property, so every ledger
+  // query joins up to oob_designs and filters on is_live.
+  `CREATE TABLE IF NOT EXISTS oob_unit_weapons (
+    unit_id INTEGER NOT NULL REFERENCES oob_units (id) ON DELETE CASCADE,
+    weapon TEXT NOT NULL
+      REFERENCES weapons (name) ON UPDATE CASCADE ON DELETE RESTRICT,
+    quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    PRIMARY KEY (unit_id, weapon)
+  )`,
+
   `CREATE TABLE IF NOT EXISTS navy_ships (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     class_model TEXT NOT NULL,
     count INTEGER NOT NULL DEFAULT 0,
     upkeep REAL NOT NULL DEFAULT 0
-  )`,
-  `CREATE TABLE IF NOT EXISTS stockpile_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_type TEXT NOT NULL,
-    quantity INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS budget_entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

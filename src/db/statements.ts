@@ -4,7 +4,13 @@
  * app issues against a plain SQLite database.
  */
 import type { Statement } from './protocol.ts'
-import type { Formation, Unit, UnitType } from '../oob/types.ts'
+import type {
+  Formation,
+  StockEntry,
+  Unit,
+  UnitType,
+  Weapon,
+} from '../oob/types.ts'
 
 export const insertUnitType = (type: UnitType): Statement => ({
   sql: `INSERT INTO unit_types
@@ -22,6 +28,39 @@ export const insertUnitType = (type: UnitType): Statement => ({
     type.weapons,
   ],
 })
+
+export const insertWeapon = (weapon: Weapon): Statement => ({
+  sql: `INSERT INTO weapons (name, class, origin, description)
+    VALUES (?, ?, ?, ?)`,
+  params: [weapon.name, weapon.class, weapon.origin, weapon.description],
+})
+
+/**
+ * Opens a pattern's place in the pile. Every catalog weapon gets a row, at
+ * zero when none are spare, so a movement is always an UPDATE and never has to
+ * decide whether the row it is drawing from exists.
+ */
+export const insertStock = (entry: StockEntry): Statement => ({
+  sql: 'INSERT INTO weapon_stock (weapon, quantity) VALUES (?, ?)',
+  params: [entry.weapon, entry.quantity],
+})
+
+/** Rows for a whole catalog and the pile that goes with it. */
+export function catalogStatements(
+  weapons: readonly Weapon[],
+  stock: readonly StockEntry[],
+): Statement[] {
+  const quantityOf = new Map(stock.map((entry) => [entry.weapon, entry.quantity]))
+  return [
+    ...weapons.map(insertWeapon),
+    ...weapons.map((weapon) =>
+      insertStock({
+        weapon: weapon.name,
+        quantity: quantityOf.get(weapon.name) ?? 0,
+      }),
+    ),
+  ]
+}
 
 export const insertFormation = (formation: Formation): Statement => ({
   sql: `INSERT INTO oob_formations

@@ -65,6 +65,37 @@ export type UnitType = {
   weapons: number
 }
 
+export const WEAPON_CLASSES = ['small_arm', 'gun'] as const
+export type WeaponClass = (typeof WEAPON_CLASSES)[number]
+
+/**
+ * One pattern in the nation's weapon catalog, mirroring weapons.yml. Keyed by
+ * name and matched exactly — see mvp-stockpile.md §2.1 for why nothing here is
+ * normalized, case-folded or fuzzy-matched.
+ */
+export type Weapon = {
+  name: string
+  class: WeaponClass
+  /** Who made it. Free text; only the stockpile report reads it. */
+  origin: string
+  description: string
+}
+
+/** How many of one pattern are in the pile, carrying nobody. */
+export type StockEntry = {
+  weapon: string
+  quantity: number
+}
+
+/**
+ * The class of weapon a unit of this category can carry. The men/guns split
+ * already in the model decides it: a man-counted unit carries small arms, a
+ * gun-counted unit is equipped with guns. Issuing 18-pounders to a levy
+ * battalion is an error, not a judgement call.
+ */
+export const classForCategory = (category: UnitCategory): WeaponClass =>
+  isGunCounted(category) ? 'gun' : 'small_arm'
+
 export type Design = {
   id: number
   name: string
