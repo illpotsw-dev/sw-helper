@@ -88,15 +88,20 @@ export type StockEntry = {
 }
 
 /**
+ * What something is carrying: a pattern and how many of it. Empty means
+ * nothing — unarmed on the way in, withdrawn on the way out.
+ */
+export type Arming = {
+  weapon: string
+  quantity: number
+}
+
+/**
  * One unit's holding of one weapon, as stored. The app allows a unit only one
  * of these for now; a second is an error validate() reports rather than a file
  * the parser rejects, which is why the plural shape is carried this far.
  */
-export type Holding = {
-  unitId: number
-  weapon: string
-  quantity: number
-}
+export type Holding = Arming & { unitId: number }
 
 /**
  * The class of weapon a unit of this category can carry. The men/guns split

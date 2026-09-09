@@ -5,6 +5,7 @@
  */
 import type { Statement } from './protocol.ts'
 import type {
+  Arming,
   Formation,
   StockEntry,
   Unit,
@@ -61,8 +62,6 @@ export const debitStock = (weapon: string, quantity: number): Statement => ({
   params: [Math.trunc(quantity), weapon],
 })
 
-export type Holding = { weapon: string; quantity: number }
-
 /**
  * One unit's half of a movement: what it hands back, what it takes up, and the
  * two sides of the pile that go with them.
@@ -78,24 +77,40 @@ export type Holding = { weapon: string; quantity: number }
  */
 export function rearmUnitStatements(input: {
   unitId: number
-  from: Holding
-  to: Holding
+  from: Arming
+  to: Arming
   movesStock: boolean
 }): Statement[] {
-  const { unitId, from, to, movesStock } = input
-  const returns =
-    movesStock && from.weapon !== '' && from.quantity > 0
-      ? [creditStock(from.weapon, from.quantity)]
-      : []
-  const draws =
-    movesStock && to.weapon !== '' && to.quantity > 0
-      ? [debitStock(to.weapon, to.quantity)]
-      : []
+  return applyMovementStatements([input], input.movesStock)
+}
 
+/**
+ * A whole movement — a bulk re-arm, an issue, a withdrawal — as one
+ * transaction and so one undo entry.
+ *
+ * Every return is written before every draw, across the whole plan rather than
+ * per unit. That is not tidiness: the planner counts what the selection hands
+ * back as available, so a battalion late in tree order can be funding one
+ * early in it, and drawing first would fail the non-negative CHECK on a pile
+ * that ends the transaction perfectly solvent.
+ */
+export function applyMovementStatements(
+  rows: readonly {
+    unitId: number
+    from: Arming
+    to: Arming
+  }[],
+  movesStock: boolean,
+): Statement[] {
+  const moved = (holding: Arming) => holding.weapon !== '' && holding.quantity > 0
   return [
-    ...returns,
-    ...setHoldingStatements(unitId, to.weapon, to.quantity),
-    ...draws,
+    ...(movesStock
+      ? rows.filter((r) => moved(r.from)).map((r) => creditStock(r.from.weapon, r.from.quantity))
+      : []),
+    ...rows.flatMap((r) => setHoldingStatements(r.unitId, r.to.weapon, r.to.quantity)),
+    ...(movesStock
+      ? rows.filter((r) => moved(r.to)).map((r) => debitStock(r.to.weapon, r.to.quantity))
+      : []),
   ]
 }
 

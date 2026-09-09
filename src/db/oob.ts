@@ -1,5 +1,6 @@
 import { query, transaction } from './client.ts'
 import {
+  applyMovementStatements,
   applyStrengthStatements,
   catalogStatements,
   creditStock,
@@ -550,6 +551,60 @@ export async function applyStrengthChanges(input: {
   label: string
 }): Promise<void> {
   await transaction(applyStrengthStatements(input.changes), input.label)
+}
+
+/**
+ * Carries out a movement worked out by planMovement. One transaction, one undo
+ * entry, labelled with what it did — "Undo: Re-arm 1st Infantry Brigade"
+ * rather than "Undo: Edit unit".
+ *
+ * A blocked plan never reaches here: the dialog will not commit one, and a
+ * plan that would overdraw the pile fails the non-negative CHECK and rolls
+ * back whole rather than committing part of itself.
+ */
+export async function applyMovement(input: {
+  rows: readonly { unitId: number; from: Holding; to: Holding }[]
+  movesStock: boolean
+  label: string
+}): Promise<void> {
+  if (input.rows.length === 0) return
+  await transaction(
+    applyMovementStatements(input.rows, input.movesStock),
+    input.label,
+  )
+}
+
+/**
+ * A weapon crossing the nation's boundary: bought, captured or given, and the
+ * reverse. The only movements the app cannot derive, and the only ones besides
+ * a combat loss that change what the nation owns.
+ */
+export async function adjustStock(input: {
+  weapon: string
+  /** Positive acquires, negative disposes. */
+  delta: number
+  label: string
+}): Promise<void> {
+  await transaction(
+    [
+      input.delta >= 0
+        ? creditStock(input.weapon, input.delta)
+        : debitStock(input.weapon, -input.delta),
+    ],
+    input.label,
+  )
+}
+
+/**
+ * Adds a pattern the nation has never held. A capture is often the first time
+ * it has seen one at all, so this exists to be called mid-flow rather than
+ * sending the player to a catalog screen — see mvp-stockpile.md §6.
+ */
+export async function addWeapon(weapon: Weapon, quantity = 0): Promise<void> {
+  await transaction(
+    catalogStatements([weapon], [{ weapon: weapon.name, quantity }]),
+    `Add ${weapon.name} to the weapon catalog`,
+  )
 }
 
 export async function reorderFormations(

@@ -13,24 +13,26 @@
 import { flatten } from './tree.ts'
 import type { Tree } from './tree.ts'
 import { classForCategory } from './types.ts'
-import type { StockEntry, Unit, UnitType, Weapon, WeaponClass } from './types.ts'
+import type {
+  Arming,
+  StockEntry,
+  Unit,
+  UnitType,
+  Weapon,
+  WeaponClass,
+} from './types.ts'
 
 const count = (value: number) => value.toLocaleString('en-US')
-
-/** What a unit hands back, or takes up. */
-export type Holding = {
-  /** Empty means nothing: unarmed on the way in, or withdrawn on the way out. */
-  weapon: string
-  quantity: number
-}
 
 export type UnitMovement = {
   unitId: number
   designation: string
   /** The unit's men, or its guns — the ceiling on what it may hold. */
   strength: number
-  from: Holding
-  to: Holding
+  /** What it hands back. An empty weapon means it was carrying nothing. */
+  from: Arming
+  /** What it takes up. An empty weapon means it is being withdrawn. */
+  to: Arming
   /** How far short of fully armed it is left. */
   gap: number
 }
@@ -162,8 +164,8 @@ export function planMovement(input: PlanInput): Plan {
     const take = Math.min(strength, pool)
     pool -= take
 
-    const from: Holding = { weapon: unit.weapon, quantity: unit.weaponCount }
-    const to: Holding =
+    const from: Arming = { weapon: unit.weapon, quantity: unit.weaponCount }
+    const to: Arming =
       weapon === '' ? { weapon: '', quantity: 0 } : { weapon, quantity: take }
 
     // A unit past the point the pile ran dry keeps the pattern it had rather

@@ -10,6 +10,7 @@ import {
   insertUnit,
   insertUnitType,
   rearmUnitStatements,
+  applyMovementStatements,
 } from './statements.ts'
 import {
   beginAction,
@@ -89,6 +90,8 @@ function open() {
 }
 
 const roster = mcgreggor()
+
+const LEXINGTON = 'Lexington Pattern Rifle (.30-06 Lexington Smokeless)'
 
 const seedCatalog = () => catalogStatements(roster.weapons, roster.stock)
 
@@ -416,4 +419,103 @@ test('a saved design arms on paper and draws nothing', () => {
   // The holding changed and the pile did not, which is the whole difference
   // between an intention and a movement.
   assert.equal(ledger('small_arm').stock, before.stock)
+})
+
+test('a bulk re-arm is one transaction and one undo entry', () => {
+  const { run, exec, stockOf, ledger } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+  const before = ledger('small_arm')
+
+  const highlanders = exec(
+    `SELECT u.id AS id, u.men AS men FROM oob_units u
+     WHERE u.designation LIKE '% Highlander Battalion'
+     ORDER BY u.sort_order`,
+  ).map((row) => ({ id: Number(row.id), men: Number(row.men) }))
+  assert.equal(highlanders.length, 3)
+
+  // The worked example, with the raid's 2,000 Lexingtons already acquired.
+  run(
+    [creditStock(LEXINGTON, 2000)],
+    'Captured 2,000 Lexington Pattern Rifle',
+  )
+
+  const takes = [975, 945, 80]
+  run(
+    applyMovementStatements(
+      highlanders.map((unit, index) => ({
+        unitId: unit.id,
+        from: { weapon: 'Barclay Hornets (7x57mm)', quantity: unit.men },
+        to: { weapon: LEXINGTON, quantity: takes[index] },
+      })),
+      true,
+    ),
+    'Re-arm Mountain Force',
+  )
+
+  assert.equal(stockOf(LEXINGTON), 0)
+  assert.equal(stockOf('Barclay Hornets (7x57mm)'), 340 + 2840)
+  // The acquisition added 2,000; the re-arm added nothing.
+  assert.equal(ledger('small_arm').owned, before.owned + 2000)
+
+  // One entry for the whole thing, and the pile and every unit come back
+  // together.
+  assert.equal(undo(exec), 'Re-arm Mountain Force')
+  assert.equal(stockOf(LEXINGTON), 2000)
+  assert.equal(stockOf('Barclay Hornets (7x57mm)'), 340)
+  assert.equal(
+    Number(
+      exec('SELECT quantity FROM oob_unit_weapons WHERE unit_id = ?', [
+        highlanders[2].id,
+      ])[0].quantity,
+    ),
+    920,
+  )
+
+  redo(exec)
+  assert.equal(stockOf(LEXINGTON), 0)
+})
+
+test('a movement that would overdraw the pile commits nothing at all', () => {
+  const { run, exec, stockOf } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+
+  const borders = exec(
+    `SELECT id FROM oob_units WHERE designation LIKE '% Mounted Borders Battalion'
+     ORDER BY sort_order`,
+  ).map((row) => Number(row.id))
+
+  // 770 + 910 = 1,680 Wardens out of a pile holding 615.
+  assert.throws(
+    () =>
+      run(
+        applyMovementStatements(
+          [
+            {
+              unitId: borders[0],
+              from: { weapon: '', quantity: 0 },
+              to: { weapon: 'Warden Rifle (.45 Caliber)', quantity: 770 },
+            },
+            {
+              unitId: borders[1],
+              from: { weapon: '', quantity: 0 },
+              to: { weapon: 'Warden Rifle (.45 Caliber)', quantity: 910 },
+            },
+          ],
+          true,
+        ),
+        'Arm the Mounted Borders',
+      ),
+    /CHECK constraint failed/,
+  )
+
+  assert.equal(stockOf('Warden Rifle (.45 Caliber)'), 615)
+  assert.equal(
+    Number(
+      exec('SELECT count(*) AS n FROM oob_unit_weapons WHERE unit_id IN (?, ?)', [
+        borders[0],
+        borders[1],
+      ])[0].n,
+    ),
+    0,
+  )
 })
