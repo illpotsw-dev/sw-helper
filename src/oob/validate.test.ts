@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { canReparent, errorsOnly, validate } from './validate.ts'
 import { DEFAULT_ECHELONS } from './types.ts'
-import type { Formation, Unit, UnitType } from './types.ts'
+import type { Formation, Holding, Unit, UnitType, Weapon } from './types.ts'
 import { mcgreggor } from './fixture.test-helper.ts'
 
 const echelons = DEFAULT_ECHELONS
@@ -40,28 +40,52 @@ const formation = (over: Partial<Formation> = {}): Formation => ({
   ...over,
 })
 
-const unit = (over: Partial<Unit> = {}): Unit => ({
-  id: 1,
-  formationId: 1,
-  unitType: 'Clan Levies',
-  designation: 'I/I Levy Battalion',
-  men: 1000,
-  weapons: 0,
-  weapon: 'Warden Rifle',
-  weaponCount: 1000,
-  sortOrder: 0,
-  ...over,
-})
+// Fully armed unless a test says otherwise, so changing a fixture's strength
+// does not incidentally make it over- or under-armed and add a problem the
+// test was not looking for.
+const unit = (over: Partial<Unit> = {}): Unit => {
+  const base: Unit = {
+    id: 1,
+    formationId: 1,
+    unitType: 'Clan Levies',
+    designation: 'I/I Levy Battalion',
+    men: 1000,
+    weapons: 0,
+    weapon: 'Warden Rifle',
+    weaponCount: 1000,
+    sortOrder: 0,
+    ...over,
+  }
+  return {
+    ...base,
+    weaponCount:
+      over.weaponCount ?? (base.weapon === '' ? 0 : base.men || base.weapons),
+  }
+}
 
 const rules = (input: Parameters<typeof validate>[0]) =>
   validate(input).map((p) => p.rule)
 
 test("Clan McGreggor's roster is valid", () => {
-  const { formations, units, unitTypes: catalog } = mcgreggor()
+  const { formations, units, unitTypes: catalog, weapons, stock } = mcgreggor()
+  const problems = validate({
+    formations,
+    units,
+    unitTypes: catalog,
+    echelons,
+    weapons,
+    stock,
+  })
+
+  assert.deepEqual(errorsOnly(problems), [])
+
+  // Four Mounted Borders battalions ride without rifles, which is a legal way
+  // to run a nation short of them and blocks nothing.
   assert.deepEqual(
-    validate({ formations, units, unitTypes: catalog, echelons }),
-    [],
+    problems.map((p) => p.rule),
+    ['unarmed', 'unarmed', 'unarmed', 'unarmed'],
   )
+  assert.match(problems[0].message, /770 carrying nothing/)
 })
 
 test('accepts multiple roots', () => {
@@ -250,4 +274,114 @@ test('a formation may not report to itself', () => {
 test('a brigade may not take a division as a child', () => {
   const result = canReparent(army, brigade, all, echelons)
   assert.equal(result.ok, false)
+})
+
+// --- Arming, per mvp-stockpile.md §8 -------------------------------------
+
+const arsenal: Weapon[] = [
+  {
+    name: 'Warden Rifle',
+    class: 'small_arm',
+    origin: 'Clan McGreggor',
+    description: '',
+  },
+  {
+    name: '18-Pounder',
+    class: 'gun',
+    origin: 'Clan McGreggor',
+    description: '',
+  },
+]
+
+const armed = (over: Partial<Unit> = {}, holdings?: Holding[]) =>
+  validate({
+    formations: [formation()],
+    units: [unit(over)],
+    unitTypes,
+    echelons,
+    weapons: arsenal,
+    stock: [{ weapon: 'Warden Rifle', quantity: 615 }],
+    holdings,
+  }).map((p) => p.rule)
+
+test('a weapon outside the catalog is an error, exactly as a unit type is', () => {
+  assert.deepEqual(armed({ weapon: 'Warden Rifle (.45)' }), ['unknown-weapon'])
+  assert.deepEqual(armed({ weapon: 'warden rifle' }), ['unknown-weapon'])
+})
+
+test('a gun issued to a man-counted unit is an error', () => {
+  assert.deepEqual(armed({ weapon: '18-Pounder' }), ['weapon-wrong-class'])
+})
+
+test('a small arm issued to a battery is an error', () => {
+  assert.deepEqual(
+    armed({
+      unitType: 'Light Artillery Battery',
+      men: 0,
+      weapons: 20,
+      weapon: 'Warden Rifle',
+    }),
+    ['weapon-wrong-class'],
+  )
+})
+
+test('a unit holding more weapons than it has men is an error', () => {
+  // The spares belong in the stockpile: a unit carrying them is holding
+  // stockpile in the wrong place.
+  assert.deepEqual(armed({ men: 600, weaponCount: 1000 }), ['over-armed'])
+})
+
+test('a unit holding fewer is a notice carrying the gap', () => {
+  const problems = validate({
+    formations: [formation()],
+    units: [unit({ men: 1000, weaponCount: 200 })],
+    unitTypes,
+    echelons,
+    weapons: arsenal,
+  })
+  assert.deepEqual(
+    problems.map((p) => p.rule),
+    ['under-armed'],
+  )
+  assert.match(problems[0].message, /under-armed by 800/)
+  // A notice blocks nothing: this is the normal state of a nation between a
+  // battle and a re-arm.
+  assert.deepEqual(errorsOnly(problems), [])
+})
+
+test('a unit carrying nothing is a notice, not a failing', () => {
+  assert.deepEqual(armed({ weapon: '', weaponCount: 0 }), ['unarmed'])
+})
+
+test('a paper unit is not also reported as unarmed', () => {
+  // It is already reported as a paper unit; saying it carries nothing adds
+  // nothing to that.
+  assert.deepEqual(armed({ men: 0, weapons: 0, weapon: '', weaponCount: 0 }), [
+    'paper-unit',
+  ])
+})
+
+test('a second holding on one unit is an error, not a silent truncation', () => {
+  assert.deepEqual(
+    armed({}, [
+      { unitId: 1, weapon: 'Warden Rifle', quantity: 600 },
+      { unitId: 1, weapon: '18-Pounder', quantity: 400 },
+    ]),
+    ['multiple-holdings'],
+  )
+})
+
+test('a negative stock quantity is an error', () => {
+  const problems = validate({
+    formations: [formation()],
+    units: [],
+    unitTypes,
+    echelons,
+    weapons: arsenal,
+    stock: [{ weapon: 'Warden Rifle', quantity: -5 }],
+  })
+  assert.deepEqual(
+    problems.map((p) => p.rule),
+    ['negative-stock'],
+  )
 })

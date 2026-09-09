@@ -18,7 +18,7 @@ import {
   type Exec,
 } from './undo.ts'
 import { buildTree } from '../oob/tree.ts'
-import { validate } from '../oob/validate.ts'
+import { errorsOnly, validate } from '../oob/validate.ts'
 import { DEFAULT_ECHELONS } from '../oob/types.ts'
 import type { Unit } from '../oob/types.ts'
 import { mcgreggor } from '../oob/fixture.test-helper.ts'
@@ -133,12 +133,16 @@ test('the roster survives a round trip through SQLite unchanged', () => {
   assert.equal(tree.roots[0].total.weapons, 506)
   assert.equal(tree.roots[1].total.men, 3400)
   assert.deepEqual(
-    validate({
-      formations,
-      units,
-      unitTypes: roster.unitTypes,
-      echelons: DEFAULT_ECHELONS,
-    }),
+    errorsOnly(
+      validate({
+        formations,
+        units,
+        unitTypes: roster.unitTypes,
+        echelons: DEFAULT_ECHELONS,
+        weapons: roster.weapons,
+        stock: roster.stock,
+      }),
+    ),
     [],
   )
 })

@@ -1,11 +1,31 @@
-import { isError, isGunCounted } from './types.ts'
-import type { Echelon, Formation, Problem, Unit, UnitType } from './types.ts'
+import { armingGap, classForCategory, isError, isGunCounted } from './types.ts'
+import type {
+  Echelon,
+  Formation,
+  Holding,
+  Problem,
+  StockEntry,
+  Unit,
+  UnitType,
+  Weapon,
+} from './types.ts'
+
+const count = (value: number) => value.toLocaleString('en-US')
 
 export type ValidateInput = {
   formations: readonly Formation[]
   units: readonly Unit[]
   unitTypes: readonly UnitType[]
   echelons: readonly Echelon[]
+  /** The weapon catalog. Omitted where a caller has no arming to check. */
+  weapons?: readonly Weapon[]
+  /** What is in the pile, checked for negative quantities. */
+  stock?: readonly StockEntry[]
+  /**
+   * Every holding as stored, which is how a unit carrying two is caught: the
+   * Unit type carries only the first, since the app allows only one.
+   */
+  holdings?: readonly Holding[]
 }
 
 /**
@@ -145,6 +165,118 @@ export function validate(input: ValidateInput): Problem[] {
           unitId: unit.id,
         })
       }
+    }
+  }
+
+  problems.push(...armingProblems(input))
+  return problems
+}
+
+/**
+ * The arming rules of mvp-stockpile.md §8, over whatever a unit is carrying.
+ *
+ * Under-arming is a notice rather than an error on purpose: it is the normal
+ * state of a nation between a battle and a re-arm, and making it an error would
+ * mean the Order of Battle stops validating every time reinforcements arrive.
+ */
+function armingProblems(input: ValidateInput): Problem[] {
+  const { units, unitTypes, weapons, stock, holdings } = input
+  const problems: Problem[] = []
+
+  for (const entry of stock ?? []) {
+    if (entry.quantity < 0) {
+      problems.push({
+        rule: 'negative-stock',
+        severity: 'error',
+        message: `The stockpile holds ${entry.quantity} of "${entry.weapon}"; a quantity cannot be negative.`,
+      })
+    }
+  }
+
+  // A unit takes one pattern for now. The storage shape allows a second so
+  // that mixed arming is a later UI change, so a file carrying one is rejected
+  // here rather than silently truncated.
+  const holdingCount = new Map<number, number>()
+  for (const holding of holdings ?? []) {
+    holdingCount.set(holding.unitId, (holdingCount.get(holding.unitId) ?? 0) + 1)
+  }
+
+  const typeByName = new Map(unitTypes.map((t) => [t.name, t]))
+  const weaponByName = weapons ? new Map(weapons.map((w) => [w.name, w])) : null
+
+  for (const unit of units) {
+    if ((holdingCount.get(unit.id) ?? 0) > 1) {
+      problems.push({
+        rule: 'multiple-holdings',
+        severity: 'error',
+        message: `"${unit.designation}" carries more than one weapon; a unit takes one pattern.`,
+        unitId: unit.id,
+      })
+    }
+
+    const strength = unit.men || unit.weapons
+
+    if (unit.weapon === '') {
+      // A paper unit is already reported as such; saying it is also unarmed
+      // adds nothing.
+      if (strength > 0) {
+        problems.push({
+          rule: 'unarmed',
+          severity: 'notice',
+          message: `"${unit.designation}" is unarmed: ${count(strength)} carrying nothing.`,
+          unitId: unit.id,
+        })
+      }
+      continue
+    }
+
+    if (weaponByName && !weaponByName.has(unit.weapon)) {
+      // Exact match only, exactly as for unit_type. See mvp-stockpile.md §2.1.
+      problems.push({
+        rule: 'unknown-weapon',
+        severity: 'error',
+        message: `"${unit.designation}" is armed with "${unit.weapon}", which is not in the weapon catalog.`,
+        unitId: unit.id,
+      })
+    }
+
+    const weapon = weaponByName?.get(unit.weapon)
+    const type = typeByName.get(unit.unitType)
+    if (weapon && type) {
+      const wanted = classForCategory(type.category)
+      if (weapon.class !== wanted) {
+        problems.push({
+          rule: 'weapon-wrong-class',
+          severity: 'error',
+          message:
+            wanted === 'gun'
+              ? `"${unit.designation}" is counted in guns but is armed with "${unit.weapon}", a small arm.`
+              : `"${unit.designation}" is counted in men but is armed with "${unit.weapon}", a gun.`,
+          unitId: unit.id,
+        })
+      }
+    }
+
+    if (unit.weaponCount > strength) {
+      // A spare weapon is by definition stockpile, so a unit holding spares is
+      // holding stockpile in the wrong place.
+      problems.push({
+        rule: 'over-armed',
+        severity: 'error',
+        message: `"${unit.designation}" holds ${count(unit.weaponCount)} weapons for ${count(strength)}; the spares belong in the stockpile.`,
+        unitId: unit.id,
+      })
+      continue
+    }
+
+    const gap = armingGap(unit)
+    if (gap > 0) {
+      problems.push({
+        rule: 'under-armed',
+        severity: 'notice',
+        message: `"${unit.designation}" is under-armed by ${count(gap)}.`,
+        unitId: unit.id,
+      })
     }
   }
 

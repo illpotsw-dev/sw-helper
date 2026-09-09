@@ -141,6 +141,6 @@ export async function loadLiveOob(
     tree: buildTree(contents.formations, contents.units, unitTypes),
     formations: contents.formations,
     units: contents.units,
-    problems: validate({ ...contents, unitTypes, echelons }),
+    problems: validate({ ...contents, unitTypes, echelons, weapons, stock }),
   }
 }
