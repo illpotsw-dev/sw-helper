@@ -24,6 +24,15 @@ import type {
 
 const count = (value: number) => value.toLocaleString('en-US')
 
+/**
+ * Which of the three movements is being made. They are one operation with a
+ * side left empty — issuing is a re-arm with nothing to hand back, withdrawing
+ * is one with nothing to draw — and are named separately only so that the four
+ * unarmed Mounted Borders battalions can be armed without pretending to
+ * re-arm them.
+ */
+export type Movement = 'rearm' | 'issue' | 'withdraw'
+
 export type UnitMovement = {
   unitId: number
   designation: string

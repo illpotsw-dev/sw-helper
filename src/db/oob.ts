@@ -23,6 +23,7 @@ import {
 import type { DropPlan } from '../oob/dnd.ts'
 export type { NewDesign, DeleteMode }
 import type {
+  Arming,
   Design,
   Echelon,
   EchelonSymbol,
@@ -563,7 +564,7 @@ export async function applyStrengthChanges(input: {
  * back whole rather than committing part of itself.
  */
 export async function applyMovement(input: {
-  rows: readonly { unitId: number; from: Holding; to: Holding }[]
+  rows: readonly { unitId: number; from: Arming; to: Arming }[]
   movesStock: boolean
   label: string
 }): Promise<void> {

@@ -4,6 +4,7 @@ import { FormationForm } from './FormationForm.tsx'
 import { UnitForm, type UnitValues } from './UnitForm.tsx'
 import { DeleteFormationPrompt } from './DeleteFormationPrompt.tsx'
 import { BattleDialog, type StrengthChange } from './BattleDialog.tsx'
+import { RearmDialog } from './RearmDialog.tsx'
 import { ExportDialog } from './ExportDialog.tsx'
 import { buttonStyles } from './styles.ts'
 import {
@@ -15,6 +16,7 @@ import {
   addFormation,
   addUnit,
   applyDrop,
+  applyMovement,
   applyStrengthChanges,
   deleteFormation,
   deleteUnit,
@@ -33,6 +35,7 @@ import { planDrop, refKey } from '../oob/dnd.ts'
 import { emptySelection, selectAll, selectUnit } from '../oob/selection.ts'
 import type { DragSubject, DropPlan, DropZone } from '../oob/dnd.ts'
 import type { EchelonSymbol, Formation, Unit } from '../oob/types.ts'
+import type { Movement } from '../oob/arm.ts'
 
 /** Whether a keystroke belongs to a text field rather than to the tree. */
 function isTyping(target: EventTarget | null): boolean {
@@ -52,6 +55,7 @@ type Editing =
   | { kind: 'edit-unit'; unit: Unit }
   | { kind: 'move'; subject: MoveSubject }
   | { kind: 'battle' }
+  | { kind: 'arm'; movement: Movement; unitIds?: ReadonlySet<number> }
   | { kind: 'export' }
   | null
 
@@ -123,6 +127,8 @@ export function OobDesigner({
     // No confirmation: a single unit is a small, clearly labelled undo away.
     onDeleteUnit: (unit) =>
       void apply(() => deleteUnit(unit.id, unit.designation)),
+    onArmUnit: (unit, movement) =>
+      setEditing({ kind: 'arm', movement, unitIds: new Set([unit.id]) }),
     onMoveFormation: (formation) =>
       setEditing({ kind: 'move', subject: { kind: 'formation', formation } }),
     onMoveUnit: (unit) =>
@@ -325,6 +331,13 @@ export function OobDesigner({
         <button
           type="button"
           className={buttonStyles.quiet}
+          onClick={() => setEditing({ kind: 'arm', movement: 'rearm' })}
+        >
+          Re-arm…
+        </button>
+        <button
+          type="button"
+          className={buttonStyles.quiet}
           onClick={() => setEditing({ kind: 'battle' })}
         >
           Battle losses…
@@ -424,6 +437,28 @@ export function OobDesigner({
           tree={data.tree}
           unitTypes={data.unitTypes}
           onApply={applyBattle}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {editing?.kind === 'arm' && (
+        <RearmDialog
+          movement={editing.movement}
+          tree={data.tree}
+          unitTypes={data.unitTypes}
+          weapons={data.weapons}
+          stock={data.stock}
+          movesStock={data.design.isLive}
+          initialSelection={editing.unitIds}
+          onApply={(plan, label) =>
+            void apply(() =>
+              applyMovement({
+                rows: plan.rows,
+                movesStock: data.design.isLive,
+                label,
+              }),
+            )
+          }
           onClose={() => setEditing(null)}
         />
       )}

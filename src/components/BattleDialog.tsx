@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Dialog, DialogActions, Field } from './Dialog.tsx'
+import { UnitPicker } from './UnitPicker.tsx'
 import { buttonStyles, inputStyles } from './styles.ts'
 import { flatten, unitIdsUnder } from '../oob/tree.ts'
-import type { Tree, TreeNode } from '../oob/tree.ts'
+import type { Tree } from '../oob/tree.ts'
 import {
   allocate,
   JITTER_PRESETS,
@@ -222,27 +223,6 @@ export function BattleDialog({
     [tree, unitTypes, selected, direction, totals, steering, jitter, seed],
   )
 
-  const toggleUnit = (id: number) =>
-    setSelected((current) => {
-      const next = new Set(current)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
-
-  // Checking a formation checks its whole subtree; unchecking clears it.
-  const toggleFormation = (node: TreeNode) => {
-    const ids = unitIdsUnder(node)
-    setSelected((current) => {
-      const next = new Set(current)
-      const all = ids.length > 0 && ids.every((id) => next.has(id))
-      for (const id of ids) {
-        if (all) next.delete(id)
-        else next.add(id)
-      }
-      return next
-    })
-  }
-
   const setRow = (
     kind: 'formation' | 'unit',
     id: number,
@@ -288,65 +268,7 @@ export function BattleDialog({
 
       {step === 1 && (
         <>
-          <div className="max-h-[45vh] overflow-y-auto rounded border border-slate-200">
-            {rows.map((row) => {
-              if (row.kind === 'formation') {
-                const ids = unitIdsUnder(row.node)
-                const chosen = ids.filter((id) => selected.has(id)).length
-                return (
-                  <label
-                    key={`f${row.node.formation.id}`}
-                    className="flex items-center gap-2 py-1 pr-2 text-sm hover:bg-slate-50"
-                    style={{ paddingLeft: `${0.5 + Math.min(row.depth, 5) * 0.85}rem` }}
-                  >
-                    <input
-                      type="checkbox"
-                      className="shrink-0"
-                      checked={ids.length > 0 && chosen === ids.length}
-                      ref={(box) => {
-                        if (box) box.indeterminate = chosen > 0 && chosen < ids.length
-                      }}
-                      disabled={ids.length === 0}
-                      onChange={() => toggleFormation(row.node)}
-                    />
-                    <span className="shrink-0 rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-[0.6rem] leading-none text-slate-600">
-                      {row.node.formation.echelon}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-medium">
-                      {row.node.formation.name}
-                    </span>
-                    <span className="shrink-0 text-xs tabular-nums text-slate-500">
-                      {chosen}/{ids.length}
-                    </span>
-                  </label>
-                )
-              }
-              return (
-                <label
-                  key={`u${row.unit.id}`}
-                  className="flex items-center gap-2 py-1 pr-2 text-sm hover:bg-slate-50"
-                  style={{ paddingLeft: `${0.5 + Math.min(row.depth, 5) * 0.85}rem` }}
-                >
-                  <input
-                    type="checkbox"
-                    className="shrink-0"
-                    checked={selected.has(row.unit.id)}
-                    onChange={() => toggleUnit(row.unit.id)}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-slate-700">
-                    {row.unit.designation}
-                  </span>
-                  <span className="shrink-0 text-xs tabular-nums text-slate-500">
-                    {row.unit.men
-                      ? `${count(row.unit.men)} men`
-                      : row.unit.weapons
-                        ? `${count(row.unit.weapons)} guns`
-                        : 'paper'}
-                  </span>
-                </label>
-              )
-            })}
-          </div>
+          <UnitPicker tree={tree} selected={selected} onChange={setSelected} />
 
           <p className="mt-2 text-sm text-slate-600 tabular-nums">
             {count(selectionTotals.units)} units selected ·{' '}

@@ -3,6 +3,7 @@ import { refKey } from '../oob/dnd.ts'
 import type { DragSubject, DropRef, DropZone } from '../oob/dnd.ts'
 import { armingGap, isError } from '../oob/types.ts'
 import type { Echelon, Formation, Problem, Unit } from '../oob/types.ts'
+import type { Movement } from '../oob/arm.ts'
 
 const count = (value: number) => value.toLocaleString('en-US')
 
@@ -114,6 +115,8 @@ export type TreeActions = {
   onAddUnit: (formation: Formation) => void
   onEditUnit: (unit: Unit) => void
   onDeleteUnit: (unit: Unit) => void
+  /** Issue, re-arm or withdraw this one unit's weapons. */
+  onArmUnit: (unit: Unit, movement: Movement) => void
   onMoveUnit: (unit: Unit) => void
   onReorderFormations: (orderedIds: number[], label: string) => void
   onReorderUnits: (orderedIds: number[], label: string) => void
@@ -309,6 +312,28 @@ function UnitRow({
           >
             Move
           </button>
+          <button
+            type="button"
+            className={actionButton}
+            title={
+              unit.weapon
+                ? 'Re-arm from the stockpile'
+                : 'Issue weapons from the stockpile'
+            }
+            onClick={() => actions.onArmUnit(unit, unit.weapon ? 'rearm' : 'issue')}
+          >
+            {unit.weapon ? 'Re-arm' : 'Arm'}
+          </button>
+          {unit.weapon !== '' && (
+            <button
+              type="button"
+              className={actionButton}
+              title="Withdraw its weapons into the stockpile"
+              onClick={() => actions.onArmUnit(unit, 'withdraw')}
+            >
+              Disarm
+            </button>
+          )}
           <button
             type="button"
             className={actionButton}
