@@ -1,6 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { owned, planMovement, stockMap, totalsByClass } from './arm.ts'
+import {
+  owned,
+  planMovement,
+  reconcileDesign,
+  stockMap,
+  totalsByClass,
+} from './arm.ts'
 import type { Plan, PlanInput } from './arm.ts'
 import { buildTree } from './tree.ts'
 import { mcgreggor } from './fixture.test-helper.ts'
@@ -341,4 +347,114 @@ test('no plan ever leaves a unit holding more than it has men', () => {
       assert.ok(row.to.quantity <= (strengthOf.get(row.unitId) ?? 0))
     }
   }
+})
+
+// --- Promote-to-live reconciliation, §4 ----------------------------------
+
+const armedLike = (source: Unit, weapon: string, quantity: number): Unit => ({
+  ...source,
+  weapon,
+  weaponCount: quantity,
+})
+
+test('a design the nation can arm has no shortfall', () => {
+  // The live roster promoted back over itself: it is armed out of exactly what
+  // it already holds, so nothing is short.
+  assert.deepEqual(
+    reconcileDesign({
+      liveUnits: roster.units,
+      stock: roster.stock,
+      designUnits: roster.units,
+    }),
+    [],
+  )
+})
+
+test('a design that arms troops the nation cannot arm is blocked, per weapon', () => {
+  // Arm the four unarmed Mounted Borders battalions with Wardens on paper:
+  // 3,495 rifles on top of the 20,215 already issued, against 20,830 owned.
+  // The 615 spare cover part of it and the rest is short.
+  const designUnits = roster.units.map((unit) =>
+    unit.designation.endsWith('Mounted Borders Battalion')
+      ? armedLike(unit, 'Warden Rifle (.45 Caliber)', unit.men)
+      : unit,
+  )
+
+  assert.deepEqual(
+    reconcileDesign({
+      liveUnits: roster.units,
+      stock: roster.stock,
+      designUnits,
+    }),
+    [
+      {
+        weapon: 'Warden Rifle (.45 Caliber)',
+        owned: 20830,
+        needed: 23710,
+        short: 2880,
+      },
+    ],
+  )
+})
+
+test('the pile counts towards a design, since promotion draws on it', () => {
+  // 615 Wardens are spare, so a design arming one extra battalion with 615 is
+  // exactly affordable and 616 is not.
+  const extra = (quantity: number) => [
+    ...roster.units,
+    armedLike(
+      byName('I Mounted Borders Battalion'),
+      'Warden Rifle (.45 Caliber)',
+      quantity,
+    ),
+  ]
+
+  assert.deepEqual(
+    reconcileDesign({
+      liveUnits: roster.units,
+      stock: roster.stock,
+      designUnits: extra(615),
+    }),
+    [],
+  )
+  assert.equal(
+    reconcileDesign({
+      liveUnits: roster.units,
+      stock: roster.stock,
+      designUnits: extra(616),
+    })[0].short,
+    1,
+  )
+})
+
+test('duplicating a design does not double the arsenal on paper', () => {
+  // The bug the live-only rule exists to forbid: if the design's own holdings
+  // counted as owned, this would reconcile against twice what the clan has.
+  const duplicate = [...roster.units, ...roster.units]
+
+  const shortfalls = reconcileDesign({
+    liveUnits: roster.units,
+    stock: roster.stock,
+    designUnits: duplicate,
+  })
+
+  assert.ok(shortfalls.length > 0, 'a design twice the size cannot be armed')
+  assert.equal(
+    shortfalls.find((s) => s.weapon === 'Warden Rifle (.45 Caliber)')?.short,
+    20215 * 2 - 20830,
+  )
+})
+
+test('a design that unarms troops frees weapons rather than needing them', () => {
+  const disarmed = roster.units.map((unit) =>
+    armedLike(unit, '', 0),
+  )
+  assert.deepEqual(
+    reconcileDesign({
+      liveUnits: roster.units,
+      stock: roster.stock,
+      designUnits: disarmed,
+    }),
+    [],
+  )
 })

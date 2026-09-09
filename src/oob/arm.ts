@@ -236,6 +236,59 @@ export function owned(
   return totals
 }
 
+export type WeaponShortfall = {
+  weapon: string
+  /** What the nation has, issued and spare together. */
+  owned: number
+  /** What the design's holdings come to. */
+  needed: number
+  short: number
+}
+
+/**
+ * Whether a design can be armed out of what the nation owns — the whole of
+ * mvp-stockpile.md §4's promote-to-live check.
+ *
+ * Holdings on a saved design are intentions, not property: counting them as
+ * owned would mean duplicating a design doubled the nation's arsenal on paper.
+ * Because promotion does not change what the nation owns, reconciling it is
+ * just this comparison, per weapon:
+ *
+ *     owned(w) − sum of holdings(w) in the design  >=  0
+ *
+ * A shortfall blocks promotion and is reported with its exact size, in the
+ * same way an error blocks it and a notice does not.
+ */
+export function reconcileDesign(input: {
+  /** The live Order of Battle, which is what the nation actually holds. */
+  liveUnits: readonly Unit[]
+  stock: readonly StockEntry[]
+  /** The design being promoted. */
+  designUnits: readonly Unit[]
+}): WeaponShortfall[] {
+  const have = owned(input.liveUnits, input.stock)
+
+  const wanted = new Map<string, number>()
+  for (const unit of input.designUnits) {
+    if (unit.weapon === '') continue
+    wanted.set(unit.weapon, (wanted.get(unit.weapon) ?? 0) + unit.weaponCount)
+  }
+
+  const shortfalls: WeaponShortfall[] = []
+  for (const [weapon, needed] of wanted) {
+    const available = have.get(weapon) ?? 0
+    if (needed <= available) continue
+    shortfalls.push({
+      weapon,
+      owned: available,
+      needed,
+      short: needed - available,
+    })
+  }
+  // Alphabetical, so the dialog reads the same way twice running.
+  return shortfalls.sort((a, b) => a.weapon.localeCompare(b.weapon, 'en'))
+}
+
 /** Totals per weapon class, for the report's owned line and the tree's header. */
 export function totalsByClass(
   amounts: ReadonlyMap<string, number>,
