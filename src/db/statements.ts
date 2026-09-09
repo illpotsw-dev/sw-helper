@@ -45,6 +45,60 @@ export const insertStock = (entry: StockEntry): Statement => ({
   params: [entry.weapon, entry.quantity],
 })
 
+/** Weapons coming back into the pile. */
+export const creditStock = (weapon: string, quantity: number): Statement => ({
+  sql: 'UPDATE weapon_stock SET quantity = quantity + ? WHERE weapon = ?',
+  params: [Math.trunc(quantity), weapon],
+})
+
+/**
+ * Weapons leaving the pile. The non-negative CHECK on weapon_stock makes an
+ * overdraw fail the whole transaction rather than clamp, which is why every
+ * caller credits its returns before reaching here.
+ */
+export const debitStock = (weapon: string, quantity: number): Statement => ({
+  sql: 'UPDATE weapon_stock SET quantity = quantity - ? WHERE weapon = ?',
+  params: [Math.trunc(quantity), weapon],
+})
+
+export type Holding = { weapon: string; quantity: number }
+
+/**
+ * One unit's half of a movement: what it hands back, what it takes up, and the
+ * two sides of the pile that go with them.
+ *
+ * Returns are written before draws, always. SQLite evaluates the non-negative
+ * CHECK per statement rather than at COMMIT, so a battalion handing in 975
+ * Barclays to take 975 Lexingtons out of a pile holding 900 must credit first
+ * or fail on a shortfall it does not have.
+ *
+ * `movesStock` is false on a saved design, where a holding is an intention
+ * rather than property: the ledger counts the live Order of Battle only, or
+ * duplicating a design would double the nation's arsenal on paper.
+ */
+export function rearmUnitStatements(input: {
+  unitId: number
+  from: Holding
+  to: Holding
+  movesStock: boolean
+}): Statement[] {
+  const { unitId, from, to, movesStock } = input
+  const returns =
+    movesStock && from.weapon !== '' && from.quantity > 0
+      ? [creditStock(from.weapon, from.quantity)]
+      : []
+  const draws =
+    movesStock && to.weapon !== '' && to.quantity > 0
+      ? [debitStock(to.weapon, to.quantity)]
+      : []
+
+  return [
+    ...returns,
+    ...setHoldingStatements(unitId, to.weapon, to.quantity),
+    ...draws,
+  ]
+}
+
 /** Rows for a whole catalog and the pile that goes with it. */
 export function catalogStatements(
   weapons: readonly Weapon[],
@@ -76,21 +130,60 @@ export const insertFormation = (formation: Formation): Statement => ({
   ],
 })
 
-export const insertUnit = (unit: Unit): Statement => ({
-  sql: `INSERT INTO oob_units
-    (id, formation_id, unit_type, designation, men, weapons, equipment, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  params: [
-    unit.id,
-    unit.formationId,
-    unit.unitType,
-    unit.designation,
-    unit.men,
-    unit.weapons,
-    unit.equipment,
-    unit.sortOrder,
-  ],
-})
+/**
+ * A unit and what it carries. Two tables, so two statements — an unarmed unit
+ * gets no holding row at all rather than a row of nothing, which is what makes
+ * "unarmed" and "holds zero rifles" the same statement.
+ */
+export const insertUnit = (unit: Unit): Statement[] => [
+  {
+    sql: `INSERT INTO oob_units
+    (id, formation_id, unit_type, designation, men, weapons, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    params: [
+      unit.id,
+      unit.formationId,
+      unit.unitType,
+      unit.designation,
+      unit.men,
+      unit.weapons,
+      unit.sortOrder,
+    ],
+  },
+  ...setHoldingStatements(unit.id, unit.weapon, unit.weaponCount),
+]
+
+/**
+ * Writes a unit's holding, replacing whatever it had. Deleting first covers
+ * the re-arm case — a unit takes one pattern, so a new weapon displaces the
+ * old rather than joining it — and leaves a unit assigned no weapon with no
+ * row, which is what makes "unarmed" and "holds nothing" the same statement.
+ *
+ * A weapon with a count of zero still gets a row. A battalion wiped out in
+ * battle keeps the assignment without the rifles — it still reads as a Warden
+ * Rifle battalion — so that when replacements arrive the app already knows
+ * what to ask the stockpile for (mvp-stockpile.md §2.3).
+ *
+ * This moves no stock on its own. The pile is the other half of the ledger,
+ * credited and debited by the caller in the same transaction.
+ */
+export const setHoldingStatements = (
+  unitId: number,
+  weapon: string,
+  quantity: number,
+): Statement[] => {
+  const statements: Statement[] = [
+    { sql: 'DELETE FROM oob_unit_weapons WHERE unit_id = ?', params: [unitId] },
+  ]
+  if (weapon !== '') {
+    statements.push({
+      sql: `INSERT INTO oob_unit_weapons (unit_id, weapon, quantity)
+        VALUES (?, ?, ?)`,
+      params: [unitId, weapon, Math.max(0, Math.trunc(quantity))],
+    })
+  }
+  return statements
+}
 
 /**
  * Reparents a formation. Its subtree comes along for free — children reference
@@ -286,6 +379,6 @@ export function designStatements(
       params: [designId, design.name, design.note ?? '', design.isLive ? 1 : 0],
     },
     ...formations.map(insertFormation),
-    ...units.map(insertUnit),
+    ...units.flatMap(insertUnit),
   ]
 }

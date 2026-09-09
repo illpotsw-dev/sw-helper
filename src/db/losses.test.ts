@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { SCHEMA_STATEMENTS } from './schema.ts'
 import {
   applyStrengthStatements,
+  catalogStatements,
   designStatements,
   insertUnitType,
 } from './statements.ts'
@@ -17,7 +18,16 @@ import {
   type Exec,
 } from './undo.ts'
 import type { Statement } from './protocol.ts'
-import type { Formation, Unit, UnitType } from '../oob/types.ts'
+import type { Formation, Unit, UnitType, Weapon } from '../oob/types.ts'
+
+const arsenal: Weapon[] = [
+  {
+    name: 'Warden Rifle',
+    class: 'small_arm',
+    origin: 'Clan McGreggor',
+    description: '',
+  },
+]
 
 const catalog: UnitType[] = [
   {
@@ -54,7 +64,8 @@ const levy = (id: number, men: number): Unit => ({
   designation: `${id}. Levy Battalion`,
   men,
   weapons: 0,
-  equipment: 'Warden Rifle',
+  weapon: 'Warden Rifle',
+  weaponCount: men,
   sortOrder: id,
 })
 
@@ -68,7 +79,8 @@ const units: Unit[] = [
     designation: '1st Light Artillery Battery',
     men: 0,
     weapons: 20,
-    equipment: '',
+    weapon: '',
+    weaponCount: 0,
     sortOrder: 3,
   },
 ]
@@ -96,6 +108,7 @@ function open() {
   run(
     [
       ...catalog.map(insertUnitType),
+      ...catalogStatements(arsenal, []),
       ...designStatements(1, 1, 1, {
         name: 'Live',
         isLive: true,
@@ -149,8 +162,13 @@ test('a wiped-out unit stays in the tree as a paper unit', () => {
   assert.ok(row, 'the battalion should still exist')
   assert.equal(Number(row.men), 0)
   assert.equal(row.designation, '1. Levy Battalion')
-  assert.equal(row.equipment, 'Warden Rifle')
   assert.equal(Number(row.formation_id), 2)
+
+  // It keeps the weapon assignment, so when replacements arrive the app
+  // already knows what to ask the stockpile for. Whether the rifles themselves
+  // survive the battle is part 8's question.
+  const [holding] = exec('SELECT * FROM oob_unit_weapons WHERE unit_id = 1')
+  assert.equal(holding.weapon, 'Warden Rifle')
 })
 
 test('one undo restores every affected unit, and redo reapplies it', () => {

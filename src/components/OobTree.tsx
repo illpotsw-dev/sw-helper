@@ -1,7 +1,7 @@
 import type { Rollup, Tree, TreeNode } from '../oob/tree.ts'
 import { refKey } from '../oob/dnd.ts'
 import type { DragSubject, DropRef, DropZone } from '../oob/dnd.ts'
-import { isError } from '../oob/types.ts'
+import { armingGap, isError } from '../oob/types.ts'
 import type { Echelon, Formation, Problem, Unit } from '../oob/types.ts'
 
 const count = (value: number) => value.toLocaleString('en-US')
@@ -264,10 +264,24 @@ function UnitRow({
         />
         <span className={`${nameCell} text-slate-700`}>
           {unit.designation}
-          {unit.equipment && (
-            <span className="text-slate-400"> · {unit.equipment}</span>
+          {unit.weapon ? (
+            <span className="text-slate-400"> · {unit.weapon}</span>
+          ) : (
+            // Not a failing: a nation short of rifles runs battalions that
+            // carry none, and four of McGreggor's do.
+            (unit.men > 0 || unit.weapons > 0) && (
+              <span className="text-amber-700"> · unarmed</span>
+            )
           )}
         </span>
+        {unit.weapon && armingGap(unit) > 0 && (
+          <span
+            title={`Holds ${unit.weaponCount.toLocaleString('en-US')} of the ${(unit.men || unit.weapons).toLocaleString('en-US')} it could`}
+            className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700"
+          >
+            −{armingGap(unit).toLocaleString('en-US')}
+          </span>
+        )}
         {unit.men === 0 && unit.weapons === 0 ? (
           <span
             title="On the books with nobody in it"

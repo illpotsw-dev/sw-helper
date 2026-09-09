@@ -34,9 +34,20 @@
 #                 measured in men or in guns, never both — artillery and
 #                 support_weapons types carry a gun count and 0 men, every
 #                 other type the reverse (see land-units.yml)
-#   equipment:    what this particular unit is armed with, tracked per unit
-#                 because two units of the same type are often equipped
-#                 differently
+#   weapon:       what this particular unit is armed with — must match a
+#                 `name` in this nation's weapons.yml EXACTLY, character
+#                 for character, the same way unit_type matches
+#                 land-units.yml. Tracked per unit because two units of the
+#                 same type are often armed differently. Omit it entirely
+#                 for a unit that carries nothing; do not write "Unarmed",
+#                 which would be a weapon named "Unarmed".
+#   weapon_count: how many of that weapon the unit actually holds. Omit it
+#                 for a fully armed unit, which means one weapon per man
+#                 (or per gun) — the usual case. A unit holding fewer is
+#                 under-armed, which is legal and flagged on its row; it can
+#                 never hold more than its strength, because a spare weapon
+#                 is by definition stockpile. See mvp/product/
+#                 mvp-stockpile.md §2.2.
 
 formations:
   # --- EXAMPLE ENTRIES — replace with your nation's actual formations ---
@@ -68,15 +79,18 @@ units:
     unit_type: Line Infantry Regiment
     men: 1000
     weapons: 0
-    equipment: "Pattern 1886 Rifle (.45 Caliber)"
+    weapon: "Pattern 1886 Rifle (.45 Caliber)"
 
-  # Below full strength after taking losses — record what it has now
+  # Below full strength after taking losses — record what it has now.
+  # Its rifles went with the men, and replacements arrived without any, so
+  # it is under-armed: 685 men, 500 rifles between them.
   - formation_id: 5th-division
     name: II/V Line Regiment
     unit_type: Line Infantry Regiment
     men: 685
     weapons: 0
-    equipment: "Pattern 1886 Rifle (.45 Caliber)"
+    weapon: "Pattern 1886 Rifle (.45 Caliber)"
+    weapon_count: 500
 
   # Batteries are counted in guns, so men is 0
   - formation_id: 5th-division
@@ -84,7 +98,7 @@ units:
     unit_type: Field Artillery Battery
     men: 0
     weapons: 12
-    equipment: "80mm Field Gun"
+    weapon: "80mm Field Gun"
 
   # A unit held directly under the corps, not assigned to any division
   - formation_id: iv-corps
@@ -92,4 +106,12 @@ units:
     unit_type: Machine Gun Support Company
     men: 0
     weapons: 24
-    equipment: "Heavy Machine Gun (.50 Caliber)"
+    weapon: "Heavy Machine Gun (.50 Caliber)"
+
+  # Raised but not yet armed: no `weapon` key at all, rather than a weapon
+  # named "Unarmed". Arming it is a draw on the weapons stockpile.
+  - formation_id: 5th-division
+    name: III/V Line Regiment
+    unit_type: Line Infantry Regiment
+    men: 900
+    weapons: 0

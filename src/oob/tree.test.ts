@@ -89,7 +89,8 @@ const upkeepOfOne = (men: number, type: UnitType): number => {
     designation: 'I Bn',
     men,
     weapons: 0,
-    equipment: '',
+    weapon: '',
+    weaponCount: 0,
     sortOrder: 0,
   }
   return buildTree([formation(1, null)], [unit], [type]).roots[0].total
@@ -173,7 +174,8 @@ test('an unresolved unit type contributes no upkeep', () => {
     designation: 'I Bn',
     men: 500,
     weapons: 0,
-    equipment: '',
+    weapon: '',
+    weaponCount: 0,
     sortOrder: 0,
   }
   const type: UnitType = {

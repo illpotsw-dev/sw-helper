@@ -399,6 +399,9 @@ export function OobDesigner({
       {(editing?.kind === 'add-unit' || editing?.kind === 'edit-unit') && (
         <UnitForm
           unitTypes={data.unitTypes}
+          weapons={data.weapons}
+          stock={data.stock}
+          movesStock={data.design.isLive}
           formationName={
             editing.kind === 'add-unit' ? editing.formation.name : ''
           }

@@ -275,14 +275,23 @@ export function parseOob(text: string, designId = 0): ParsedOob {
       return
     }
 
+    const men = num(entry.men)
+    const weapons = num(entry.weapons)
+    const weapon = str(entry.weapon)
+
     units.push({
       id: index + 1,
       formationId,
       unitType: str(entry.unit_type),
       designation: str(entry.name),
-      men: num(entry.men),
-      weapons: num(entry.weapons),
-      equipment: str(entry.equipment),
+      men,
+      weapons,
+      weapon,
+      // An omitted count means fully armed — one weapon per man or per gun,
+      // which is what 54 of McGreggor's 58 units want and what keeps the
+      // common case out of the file. A unit naming no weapon holds none,
+      // whatever it says.
+      weaponCount: weapon === '' ? 0 : num(entry.weapon_count, men || weapons),
       sortOrder: index,
     })
   })

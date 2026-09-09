@@ -2,11 +2,14 @@ import { query, transaction } from './client.ts'
 import {
   applyStrengthStatements,
   catalogStatements,
+  creditStock,
+  debitStock,
   deleteFormationStatements,
   designStatements,
   insertFormation,
   insertUnit,
   insertUnitType,
+  rearmUnitStatements,
   moveFormationStatements,
   moveUnitsAndOrderStatements,
   moveUnitsStatements,
@@ -23,6 +26,7 @@ import type {
   Echelon,
   EchelonSymbol,
   Formation,
+  Holding,
   StockEntry,
   Unit,
   UnitCategory,
@@ -81,14 +85,21 @@ const toFormation = (row: Row): Formation => ({
   sortOrder: num(row.sort_order),
 })
 
-const toUnit = (row: Row): Unit => ({
+const toHolding = (row: Row): Holding => ({
+  unitId: num(row.unit_id),
+  weapon: str(row.weapon),
+  quantity: num(row.quantity),
+})
+
+const toUnit = (row: Row, holding: Holding | undefined): Unit => ({
   id: num(row.id),
   formationId: num(row.formation_id),
   unitType: str(row.unit_type),
   designation: str(row.designation),
   men: num(row.men),
   weapons: num(row.weapons),
-  equipment: str(row.equipment),
+  weapon: holding?.weapon ?? '',
+  weaponCount: holding?.quantity ?? 0,
   sortOrder: num(row.sort_order),
 })
 
@@ -150,10 +161,17 @@ export async function getLiveDesign(): Promise<Design | null> {
   return rows.length ? toDesign(rows[0]) : null
 }
 
-export async function loadDesign(
-  designId: number,
-): Promise<{ formations: Formation[]; units: Unit[] }> {
-  const [formationRows, unitRows] = await transaction([
+export async function loadDesign(designId: number): Promise<{
+  formations: Formation[]
+  units: Unit[]
+  /** Every holding as stored, so a unit carrying two can be reported as one. */
+  holdings: Holding[]
+}> {
+  // Holdings come back as their own list rather than as a join onto the units,
+  // so a unit that has somehow acquired two of them appears once with its
+  // first holding and is reported by validate(), rather than appearing twice
+  // in the tree.
+  const [formationRows, unitRows, holdingRows] = await transaction([
     {
       sql: 'SELECT * FROM oob_formations WHERE design_id = ? ORDER BY sort_order, id',
       params: [designId],
@@ -165,10 +183,26 @@ export async function loadDesign(
             ORDER BY u.sort_order, u.id`,
       params: [designId],
     },
+    {
+      sql: `SELECT w.* FROM oob_unit_weapons w
+            JOIN oob_units u ON u.id = w.unit_id
+            JOIN oob_formations f ON f.id = u.formation_id
+            WHERE f.design_id = ?
+            ORDER BY w.unit_id, w.weapon`,
+      params: [designId],
+    },
   ])
+
+  const holdings = holdingRows.map(toHolding)
+  const firstHolding = new Map<number, Holding>()
+  for (const holding of holdings) {
+    if (!firstHolding.has(holding.unitId)) firstHolding.set(holding.unitId, holding)
+  }
+
   return {
     formations: formationRows.map(toFormation),
-    units: unitRows.map(toUnit),
+    units: unitRows.map((row) => toUnit(row, firstHolding.get(num(row.id)))),
+    holdings,
   }
 }
 
@@ -268,6 +302,35 @@ export async function updateFormation(
   )
 }
 
+/**
+ * What every unit under a formation is carrying, totalled per weapon. Used to
+ * put a deleted subtree's weapons back in the pile — disbanding a division
+ * does not destroy its rifles, and nothing crosses the nation's boundary
+ * without an explicit disposal or a combat loss (mvp-stockpile.md §4).
+ */
+async function subtreeHoldings(
+  formationId: number,
+): Promise<{ weapon: string; quantity: number }[]> {
+  const rows = await query(
+    `WITH RECURSIVE subtree(id) AS (
+       SELECT id FROM oob_formations WHERE id = ?
+       UNION ALL
+       SELECT f.id FROM oob_formations f JOIN subtree s ON f.parent_id = s.id
+     )
+     SELECT w.weapon AS weapon, SUM(w.quantity) AS quantity
+     FROM oob_unit_weapons w
+     JOIN oob_units u ON u.id = w.unit_id
+     WHERE u.formation_id IN (SELECT id FROM subtree)
+     GROUP BY w.weapon
+     HAVING SUM(w.quantity) > 0`,
+    [formationId],
+  )
+  return rows.map((row) => ({
+    weapon: str(row.weapon),
+    quantity: num(row.quantity),
+  }))
+}
+
 export async function deleteFormation(input: {
   formationId: number
   parentId: number | null
@@ -276,8 +339,18 @@ export async function deleteFormation(input: {
   childFormationIds: readonly number[]
   attachedUnitIds: readonly number[]
 }): Promise<void> {
+  // Promoting deletes no unit, so nothing is handed back; only a subtree
+  // delete strikes units off, and those units' weapons return to the pile.
+  const returns =
+    input.mode === 'subtree' && (await formationIsLive(input.formationId))
+      ? await subtreeHoldings(input.formationId)
+      : []
+
   await transaction(
-    deleteFormationStatements(input),
+    [
+      ...returns.map((entry) => creditStock(entry.weapon, entry.quantity)),
+      ...deleteFormationStatements(input),
+    ],
     input.mode === 'subtree'
       ? `Delete ${input.name} and everything under it`
       : `Delete ${input.name}`,
@@ -293,25 +366,87 @@ async function nextUnitSortOrder(formationId: number): Promise<number> {
   return num(rows[0]?.next)
 }
 
+/**
+ * Whether writes to this formation's design move real weapons. Holdings on a
+ * saved design are intentions, not property, and are reconciled against the
+ * pile only at promote-to-live — see mvp-stockpile.md §4.
+ */
+async function formationIsLive(formationId: number): Promise<boolean> {
+  const rows = await query(
+    `SELECT d.is_live AS is_live FROM oob_formations f
+     JOIN oob_designs d ON d.id = f.design_id
+     WHERE f.id = ?`,
+    [formationId],
+  )
+  return num(rows[0]?.is_live) === 1
+}
+
+/** A unit's formation and current holding, for a movement that displaces it. */
+async function unitContext(
+  unitId: number,
+): Promise<{ isLive: boolean; holding: { weapon: string; quantity: number } }> {
+  const [designRows, holdingRows] = await transaction([
+    {
+      sql: `SELECT d.is_live AS is_live FROM oob_units u
+            JOIN oob_formations f ON f.id = u.formation_id
+            JOIN oob_designs d ON d.id = f.design_id
+            WHERE u.id = ?`,
+      params: [unitId],
+    },
+    {
+      sql: `SELECT weapon, quantity FROM oob_unit_weapons
+            WHERE unit_id = ? ORDER BY weapon`,
+      params: [unitId],
+    },
+  ])
+
+  const first = holdingRows[0]
+  return {
+    isLive: num(designRows[0]?.is_live) === 1,
+    holding: first
+      ? { weapon: str(first.weapon), quantity: num(first.quantity) }
+      : { weapon: '', quantity: 0 },
+  }
+}
+
+/**
+ * Raises a unit. On the live Order of Battle an armed one draws its holding
+ * from the stockpile in the same transaction, so nothing is conjured by
+ * typing: the caller offers only what is in stock, and an overdraw fails the
+ * whole write rather than minting rifles.
+ */
 export async function addUnit(input: {
   formationId: number
   unitType: string
   designation: string
   men: number
   weapons: number
-  equipment: string
+  weapon: string
+  weaponCount: number
 }): Promise<number> {
-  const [id, sortOrder] = await Promise.all([
+  const [id, sortOrder, isLive] = await Promise.all([
     nextId('oob_units'),
     nextUnitSortOrder(input.formationId),
+    formationIsLive(input.formationId),
   ])
   await transaction(
-    [insertUnit({ ...input, id, sortOrder })],
+    [
+      ...insertUnit({ ...input, id, sortOrder }),
+      ...(isLive && input.weapon !== '' && input.weaponCount > 0
+        ? [debitStock(input.weapon, input.weaponCount)]
+        : []),
+    ],
     `Add ${input.designation}`,
   )
   return id
 }
 
+/**
+ * Edits a unit, moving whatever weapons the edit displaces. Re-arming a
+ * battalion here is the same movement the re-arm dialog makes: the old pattern
+ * goes back to the pile and the new one comes out of it, in one transaction
+ * and one undo entry.
+ */
 export async function updateUnit(
   id: number,
   changes: {
@@ -319,20 +454,32 @@ export async function updateUnit(
     designation: string
     men: number
     weapons: number
-    equipment: string
+    weapon: string
+    weaponCount: number
   },
 ): Promise<void> {
-  await query(
-    `UPDATE oob_units
-     SET unit_type = ?, designation = ?, men = ?, weapons = ?, equipment = ?
-     WHERE id = ?`,
+  const { isLive, holding } = await unitContext(id)
+
+  await transaction(
     [
-      changes.unitType,
-      changes.designation,
-      changes.men,
-      changes.weapons,
-      changes.equipment,
-      id,
+      {
+        sql: `UPDATE oob_units
+              SET unit_type = ?, designation = ?, men = ?, weapons = ?
+              WHERE id = ?`,
+        params: [
+          changes.unitType,
+          changes.designation,
+          changes.men,
+          changes.weapons,
+          id,
+        ],
+      },
+      ...rearmUnitStatements({
+        unitId: id,
+        from: holding,
+        to: { weapon: changes.weapon, quantity: changes.weaponCount },
+        movesStock: isLive,
+      }),
     ],
     `Edit ${changes.designation}`,
   )
@@ -419,8 +566,23 @@ export async function reorderUnits(
   await transaction(resequenceUnitStatements(orderedIds), label)
 }
 
+/**
+ * Strikes a unit off. Its weapons go back to the pile rather than out of the
+ * nation's possession — disbanding a battalion is not the same as losing one,
+ * and only an explicit disposal or a combat loss destroys a weapon.
+ */
 export async function deleteUnit(id: number, designation: string): Promise<void> {
-  await query('DELETE FROM oob_units WHERE id = ?', [id], `Delete ${designation}`)
+  const { isLive, holding } = await unitContext(id)
+  await transaction(
+    [
+      ...(isLive && holding.weapon !== '' && holding.quantity > 0
+        ? [creditStock(holding.weapon, holding.quantity)]
+        : []),
+      // The holding row goes with the unit by ON DELETE CASCADE.
+      { sql: 'DELETE FROM oob_units WHERE id = ?', params: [id] },
+    ],
+    `Delete ${designation}`,
+  )
 }
 
 /** Whether this browser already holds a nation. */

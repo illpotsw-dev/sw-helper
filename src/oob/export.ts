@@ -160,11 +160,19 @@ export function exportOobYaml({
       `    unit_type: ${scalar(unit.unitType)}`,
       `    men: ${integer(unit.men)}`,
       `    weapons: ${integer(unit.weapons)}`,
-      // Always quoted: equipment is a free-text calibre or model number, the
-      // field most likely to start with a digit or carry punctuation.
-      `    equipment: ${JSON.stringify(unit.equipment)}`,
-      '',
     )
+    if (unit.weapon !== '') {
+      // Always quoted: a weapon name is a calibre or a model number, the field
+      // most likely to start with a digit or carry punctuation.
+      lines.push(`    weapon: ${JSON.stringify(unit.weapon)}`)
+      // Omitted when the unit is fully armed, which is what an absent count
+      // means on the way back in. Writing it out anyway would put a redundant
+      // number on 54 of McGreggor's 58 units.
+      if (unit.weaponCount !== (unit.men || unit.weapons)) {
+        lines.push(`    weapon_count: ${integer(unit.weaponCount)}`)
+      }
+    }
+    lines.push('')
   }
 
   return `${lines.join('\n').trimEnd()}\n`

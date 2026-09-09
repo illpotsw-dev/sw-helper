@@ -64,7 +64,8 @@ const battalion = (id: number, formationId: number, men: number): Unit => ({
   designation: `Battalion ${id}`,
   men,
   weapons: 0,
-  equipment: '',
+  weapon: '',
+  weaponCount: 0,
   sortOrder: id,
 })
 
@@ -75,7 +76,8 @@ const battery = (id: number, formationId: number): Unit => ({
   designation: `Battery ${id}`,
   men: 0,
   weapons: 20,
-  equipment: '',
+  weapon: '',
+  weaponCount: 0,
   sortOrder: id,
 })
 
@@ -129,6 +131,12 @@ function open() {
         sortOrder: Number(r.sort_order),
       }),
     )
+    const holdings = new Map(
+      exec('SELECT * FROM oob_unit_weapons').map((r) => [
+        Number(r.unit_id),
+        { weapon: String(r.weapon), quantity: Number(r.quantity) },
+      ]),
+    )
     const u = exec('SELECT * FROM oob_units ORDER BY sort_order, id').map((r) => ({
       id: Number(r.id),
       formationId: Number(r.formation_id),
@@ -136,7 +144,8 @@ function open() {
       designation: String(r.designation),
       men: Number(r.men),
       weapons: Number(r.weapons),
-      equipment: String(r.equipment),
+      weapon: holdings.get(Number(r.id))?.weapon ?? '',
+      weaponCount: holdings.get(Number(r.id))?.quantity ?? 0,
       sortOrder: Number(r.sort_order),
     }))
     return { formations: f, units: u, tree: buildTree(f, u, catalog) }

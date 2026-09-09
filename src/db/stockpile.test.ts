@@ -2,7 +2,15 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { SCHEMA_STATEMENTS } from './schema.ts'
-import { catalogStatements } from './statements.ts'
+import {
+  catalogStatements,
+  creditStock,
+  debitStock,
+  designStatements,
+  insertUnit,
+  insertUnitType,
+  rearmUnitStatements,
+} from './statements.ts'
 import {
   beginAction,
   finishAction,
@@ -46,12 +54,55 @@ function open() {
         ?.quantity ?? -1,
     )
 
-  return { db, exec, run, stockOf }
+  const holdingOf = (unitId: number) => {
+    const row = exec('SELECT * FROM oob_unit_weapons WHERE unit_id = ?', [
+      unitId,
+    ])[0]
+    return row
+      ? { weapon: String(row.weapon), quantity: Number(row.quantity) }
+      : { weapon: '', quantity: 0 }
+  }
+
+  /**
+   * The ledger, per weapon class. Issued counts the live design only —
+   * holdings on a saved design are intentions, not property, or duplicating a
+   * design would double the nation's arsenal on paper.
+   */
+  const ledger = (weaponClass: 'small_arm' | 'gun') => {
+    const one = (sql: string) => Number(exec(sql, [weaponClass])[0]?.n ?? 0)
+    const stock = one(
+      `SELECT COALESCE(SUM(s.quantity), 0) AS n FROM weapon_stock s
+       JOIN weapons w ON w.name = s.weapon WHERE w.class = ?`,
+    )
+    const issued = one(
+      `SELECT COALESCE(SUM(h.quantity), 0) AS n FROM oob_unit_weapons h
+       JOIN weapons w ON w.name = h.weapon
+       JOIN oob_units u ON u.id = h.unit_id
+       JOIN oob_formations f ON f.id = u.formation_id
+       JOIN oob_designs d ON d.id = f.design_id
+       WHERE w.class = ? AND d.is_live = 1`,
+    )
+    return { stock, issued, owned: stock + issued }
+  }
+
+  return { db, exec, run, stockOf, holdingOf, ledger }
 }
 
 const roster = mcgreggor()
 
 const seedCatalog = () => catalogStatements(roster.weapons, roster.stock)
+
+/** The catalog, the pile and the whole live order of battle. */
+const seedNation = () => [
+  ...roster.unitTypes.map(insertUnitType),
+  ...seedCatalog(),
+  ...designStatements(1, 1, 1, {
+    name: 'Order of Battle',
+    isLive: true,
+    formations: roster.formations,
+    units: roster.units,
+  }),
+]
 
 test("Clan McGreggor's catalog and pile satisfy every database constraint", () => {
   const { run, exec } = open()
@@ -150,4 +201,219 @@ test('a movement over the two tables is one undo entry', () => {
   redo(exec)
   assert.equal(stockOf('Barclay Hornets (7x57mm)'), 680)
   assert.equal(stockOf('Warden Rifle (.45 Caliber)'), 275)
+})
+
+test("the seeded nation's ledger closes", () => {
+  const { run, ledger } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+
+  // The figures mvp-stockpile.md §7 quotes: what is issued plus what is spare
+  // is what the clan owns, and nothing is in neither place or both.
+  const smallArms = ledger('small_arm')
+  assert.deepEqual(smallArms, { stock: 1100, issued: 27985, owned: 29085 })
+
+  const guns = ledger('gun')
+  assert.deepEqual(guns, { stock: 24, issued: 525, owned: 549 })
+})
+
+test('the four unarmed battalions hold nothing at all', () => {
+  const { run, exec } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+
+  const unarmed = exec(
+    `SELECT u.designation FROM oob_units u
+     LEFT JOIN oob_unit_weapons h ON h.unit_id = u.id
+     WHERE h.unit_id IS NULL`,
+  ).map((row) => String(row.designation))
+
+  // No holding row rather than a holding of a weapon named "Unarmed": the
+  // absence of a weapon is not a weapon.
+  assert.deepEqual(unarmed, [
+    'I Mounted Borders Battalion',
+    'II Mounted Borders Battalion',
+    'III Mounted Borders Battalion',
+    'IV Mounted Borders Battalion',
+  ])
+})
+
+test('a fully armed unit holds exactly its strength', () => {
+  const { run, exec } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+
+  // An omitted weapon_count means fully armed, which is what 54 of the 58
+  // units want. Nothing in the roster is under-armed.
+  const mismatched = exec(
+    `SELECT u.designation FROM oob_units u
+     JOIN oob_unit_weapons h ON h.unit_id = u.id
+     WHERE h.quantity <> u.men + u.weapons`,
+  )
+  assert.deepEqual(mismatched, [])
+})
+
+test('raising an armed unit draws its weapons out of the pile', () => {
+  const { run, stockOf, ledger } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+  const before = ledger('small_arm')
+
+  run(
+    [
+      ...insertUnit({
+        id: 999,
+        formationId: 1,
+        unitType: 'Clan Levies',
+        designation: 'V Levy Battalion',
+        men: 600,
+        weapons: 0,
+        weapon: 'Warden Rifle (.45 Caliber)',
+        weaponCount: 600,
+        sortOrder: 99,
+      }),
+      debitStock('Warden Rifle (.45 Caliber)', 600),
+    ],
+    'Add V Levy Battalion',
+  )
+
+  assert.equal(stockOf('Warden Rifle (.45 Caliber)'), 15)
+  // Weapons moved, none were created: raising a unit is not a way to conjure
+  // rifles by typing.
+  assert.equal(ledger('small_arm').owned, before.owned)
+  assert.equal(ledger('small_arm').issued, before.issued + 600)
+})
+
+test('a unit cannot be armed out of a pile that has not got them', () => {
+  const { run, ledger } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+  const before = ledger('small_arm')
+
+  assert.throws(
+    () =>
+      run(
+        [
+          ...insertUnit({
+            id: 999,
+            formationId: 1,
+            unitType: 'Clan Levies',
+            designation: 'V Levy Battalion',
+            men: 1000,
+            weapons: 0,
+            weapon: 'Warden Rifle (.45 Caliber)',
+            weaponCount: 1000,
+            sortOrder: 99,
+          }),
+          debitStock('Warden Rifle (.45 Caliber)', 1000),
+        ],
+        'Add V Levy Battalion',
+      ),
+    /CHECK constraint failed/,
+  )
+
+  // Nothing at all: not the unit, not the holding, not the overdraw.
+  assert.deepEqual(ledger('small_arm'), before)
+})
+
+test('striking a unit off puts its weapons back in the pile', () => {
+  const { run, exec, stockOf, ledger } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+  const before = ledger('small_arm')
+
+  // I/I Levy Battalion, 1,000 men on 1,000 Wardens.
+  const [row] = exec(
+    `SELECT u.id AS id, h.weapon AS weapon, h.quantity AS quantity
+     FROM oob_units u JOIN oob_unit_weapons h ON h.unit_id = u.id
+     WHERE u.designation = 'I/I Levy Battalion'`,
+  )
+
+  run(
+    [
+      creditStock(String(row.weapon), Number(row.quantity)),
+      { sql: 'DELETE FROM oob_units WHERE id = ?', params: [Number(row.id)] },
+    ],
+    'Delete I/I Levy Battalion',
+  )
+
+  // Disbanding a battalion is not the same as losing one: only a disposal or a
+  // combat loss takes a weapon out of the nation's possession.
+  assert.equal(stockOf('Warden Rifle (.45 Caliber)'), 1615)
+  assert.equal(ledger('small_arm').owned, before.owned)
+  assert.equal(ledger('small_arm').issued, before.issued - 1000)
+})
+
+test('re-arming moves weapons between hands and pile without creating any', () => {
+  const { run, exec, holdingOf, stockOf, ledger } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+  const before = ledger('small_arm')
+
+  // I Clan Guard Elite Battalion: 660 men on Barclays, re-armed onto Wardens.
+  // Only 615 are spare, so it comes away under-armed by 60 — a legal state,
+  // and the normal one for a nation this short of rifles.
+  const unitId = Number(
+    exec(
+      `SELECT id FROM oob_units WHERE designation = 'I Clan Guard Elite Battalion'`,
+    )[0]?.id ?? 0,
+  )
+  assert.ok(unitId)
+
+  run(
+    rearmUnitStatements({
+      unitId,
+      from: { weapon: 'Barclay Hornets (7x57mm)', quantity: 660 },
+      to: { weapon: 'Warden Rifle (.45 Caliber)', quantity: 600 },
+      movesStock: true,
+    }),
+    'Re-arm I Clan Guard Elite Battalion',
+  )
+
+  assert.deepEqual(holdingOf(unitId), {
+    weapon: 'Warden Rifle (.45 Caliber)',
+    quantity: 600,
+  })
+  assert.equal(stockOf('Barclay Hornets (7x57mm)'), 340 + 660)
+  assert.equal(stockOf('Warden Rifle (.45 Caliber)'), 615 - 600)
+  assert.equal(ledger('small_arm').owned, before.owned)
+})
+
+test('returns are credited before draws, or the pile goes briefly negative', () => {
+  const { run, exec, stockOf } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+
+  // Re-arming a battalion with the pattern it already carries is a no-op on
+  // paper, but only if its 660 Barclays go back before its 660 come out: the
+  // pile holds 340, and SQLite checks the non-negative constraint per
+  // statement rather than at COMMIT. Drawing first fails outright.
+  const unitId = Number(
+    exec(
+      `SELECT id FROM oob_units WHERE designation = 'I Clan Guard Elite Battalion'`,
+    )[0].id,
+  )
+  run(
+    rearmUnitStatements({
+      unitId,
+      from: { weapon: 'Barclay Hornets (7x57mm)', quantity: 660 },
+      to: { weapon: 'Barclay Hornets (7x57mm)', quantity: 660 },
+      movesStock: true,
+    }),
+    'Re-arm onto the same pattern',
+  )
+
+  assert.equal(stockOf('Barclay Hornets (7x57mm)'), 340)
+})
+
+test('a saved design arms on paper and draws nothing', () => {
+  const { run, ledger } = open()
+  run(seedNation(), 'Load Clan McGreggor')
+  const before = ledger('small_arm')
+
+  run(
+    rearmUnitStatements({
+      unitId: 1,
+      from: { weapon: 'Warden Rifle (.45 Caliber)', quantity: 1000 },
+      to: { weapon: 'Barclay Hornets (7x57mm)', quantity: 1000 },
+      movesStock: false,
+    }),
+    'Re-arm on a design',
+  )
+
+  // The holding changed and the pile did not, which is the whole difference
+  // between an intention and a movement.
+  assert.equal(ledger('small_arm').stock, before.stock)
 })

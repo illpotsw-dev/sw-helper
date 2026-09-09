@@ -23,7 +23,8 @@ const unit = (id: number, formationId: number, sortOrder: number): Unit => ({
   designation: `Battalion ${id}`,
   men: 500,
   weapons: 0,
-  equipment: '',
+  weapon: '',
+  weaponCount: 0,
   sortOrder,
 })
 

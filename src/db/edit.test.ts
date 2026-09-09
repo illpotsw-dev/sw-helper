@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { SCHEMA_STATEMENTS } from './schema.ts'
 import {
   canPromote,
+  catalogStatements,
   deleteFormationStatements,
   designStatements,
   insertUnitType,
@@ -17,7 +18,7 @@ import {
 } from './undo.ts'
 import { finishAction } from './undo.ts'
 import type { Statement } from './protocol.ts'
-import type { Formation, Unit, UnitType } from '../oob/types.ts'
+import type { Formation, Unit, UnitType, Weapon } from '../oob/types.ts'
 
 const catalog: UnitType[] = [
   {
@@ -29,6 +30,15 @@ const catalog: UnitType[] = [
     buildTimeTurns: 1,
     men: 1000,
     weapons: 0,
+  },
+]
+
+const arsenal: Weapon[] = [
+  {
+    name: 'Warden Rifle',
+    class: 'small_arm',
+    origin: 'Clan McGreggor',
+    description: '',
   },
 ]
 
@@ -47,7 +57,8 @@ const units: Unit[] = [
     designation: 'I/I Levy Battalion',
     men: 1000,
     weapons: 0,
-    equipment: 'Warden Rifle',
+    weapon: 'Warden Rifle',
+    weaponCount: 1000,
     sortOrder: 0,
   },
   {
@@ -57,7 +68,8 @@ const units: Unit[] = [
     designation: 'Division Troops',
     men: 500,
     weapons: 0,
-    equipment: 'Warden Rifle',
+    weapon: 'Warden Rifle',
+    weaponCount: 500,
     sortOrder: 1,
   },
 ]
@@ -85,6 +97,7 @@ function open() {
   run(
     [
       ...catalog.map(insertUnitType),
+      ...catalogStatements(arsenal, [{ weapon: 'Warden Rifle', quantity: 400 }]),
       ...designStatements(1, 1, 1, {
         name: 'Live',
         isLive: true,

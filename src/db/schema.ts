@@ -95,10 +95,10 @@ export const SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS oob_formations_parent
     ON oob_formations (parent_id)`,
 
-  // Raised units. Strength and equipment live here rather than on the type,
-  // so a unit can sit below full strength and two units of the same type can
-  // be equipped differently. ON DELETE RESTRICT stops a catalog entry being
-  // removed while units still reference it.
+  // Raised units. Strength lives here rather than on the type, so a unit can
+  // sit below full strength without affecting its siblings; what it carries
+  // lives in oob_unit_weapons below. ON DELETE RESTRICT stops a catalog entry
+  // being removed while units still reference it.
   `CREATE TABLE IF NOT EXISTS oob_units (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     formation_id INTEGER NOT NULL
@@ -108,7 +108,6 @@ export const SCHEMA_STATEMENTS = [
     designation TEXT NOT NULL,
     men INTEGER NOT NULL DEFAULT 0,
     weapons INTEGER NOT NULL DEFAULT 0,
-    equipment TEXT NOT NULL DEFAULT '',
     sort_order INTEGER NOT NULL DEFAULT 0,
     -- At most one of the two carries the unit's strength. Both at zero is a
     -- paper unit: on the books with nobody in it, which is how a wiped-out

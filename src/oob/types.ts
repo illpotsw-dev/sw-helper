@@ -88,6 +88,17 @@ export type StockEntry = {
 }
 
 /**
+ * One unit's holding of one weapon, as stored. The app allows a unit only one
+ * of these for now; a second is an error validate() reports rather than a file
+ * the parser rejects, which is why the plural shape is carried this far.
+ */
+export type Holding = {
+  unitId: number
+  weapon: string
+  quantity: number
+}
+
+/**
  * The class of weapon a unit of this category can carry. The men/guns split
  * already in the model decides it: a man-counted unit carries small arms, a
  * gun-counted unit is equipped with guns. Issuing 18-pounders to a levy
@@ -121,9 +132,28 @@ export type Unit = {
   designation: string
   men: number
   weapons: number
-  equipment: string
+  /**
+   * The weapon this unit carries, matching a Weapon name exactly. Empty means
+   * unarmed, which is a legal way to run a nation short of rifles — four of
+   * Clan McGreggor's battalions are.
+   *
+   * Singular while the UI is: storage holds a row per holding so that mixed
+   * arming is a later UI change rather than a migration, and the app enforces
+   * the one-holding limit. See mvp-stockpile.md §2.2.
+   */
+  weapon: string
+  /**
+   * How many of it the unit actually holds. Never more than its strength — a
+   * spare weapon is by definition stockpile — and possibly fewer, which is
+   * under-armed and legal.
+   */
+  weaponCount: number
   sortOrder: number
 }
+
+/** What a unit is short of being fully armed, or 0 when it is. */
+export const armingGap = (unit: Unit): number =>
+  Math.max(0, (unit.men || unit.weapons) - unit.weaponCount)
 
 /**
  * An error is something the design must not be promoted to live with; a

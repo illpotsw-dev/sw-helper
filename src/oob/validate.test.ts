@@ -47,7 +47,8 @@ const unit = (over: Partial<Unit> = {}): Unit => ({
   designation: 'I/I Levy Battalion',
   men: 1000,
   weapons: 0,
-  equipment: 'Warden Rifle',
+  weapon: 'Warden Rifle',
+  weaponCount: 1000,
   sortOrder: 0,
   ...over,
 })

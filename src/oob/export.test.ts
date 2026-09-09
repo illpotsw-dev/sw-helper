@@ -29,7 +29,7 @@ const shapeOf = (formations: Formation[], units: Unit[]): Shape[] => {
       name: node.formation.name,
       units: node.units.map(
         (u) =>
-          `${u.designation}|${u.unitType}|${u.men}|${u.weapons}|${u.equipment}`,
+          `${u.designation}|${u.unitType}|${u.men}|${u.weapons}|${u.weapon}|${u.weaponCount}`,
       ),
       children: shape({ roots: node.children, unreachable: [] }),
     }))
@@ -102,7 +102,8 @@ test('quotes names YAML would otherwise read as something else', () => {
       designation: 'true',
       men: 100,
       weapons: 0,
-      equipment: 'Warden Rifle (.45 Caliber)',
+      weapon: 'Warden Rifle (.45 Caliber)',
+      weaponCount: 100,
       sortOrder: 0,
     },
   ]
@@ -137,7 +138,8 @@ test('keeps a paper unit at zero rather than dropping it', () => {
     designation: 'I/I Cadre',
     men: 0,
     weapons: 0,
-    equipment: '',
+    weapon: '',
+    weaponCount: 0,
     sortOrder: 0,
   }
   const back = reimport(
